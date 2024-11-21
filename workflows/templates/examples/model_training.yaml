@@ -1,0 +1,81 @@
+name: model_training_workflow
+description: "Workflow template for model training pipeline"
+version: "1.0.0"
+schedule: "0 0 * * *"  # Daily at midnight
+timeout: 7200  # 2 hours
+tags:
+  - training
+  - ml
+  - production
+
+steps:
+  - name: data_preparation
+    function: prepare_training_data
+    args:
+      batch_size: 32
+      validation_split: 0.2
+    timeout: 1800
+    resources:
+      cpu: "2"
+      memory: "4Gi"
+
+  - name: model_training
+    function: train_model
+    args:
+      epochs: 10
+      learning_rate: 0.001
+      early_stopping: true
+    dependencies:
+      - data_preparation
+    retry_policy:
+      max_retries: 3
+      retry_interval: 300
+    resources:
+      cpu: "4"
+      memory: "8Gi"
+      gpu: "1"
+
+  - name: model_evaluation
+    function: evaluate_model
+    args:
+      metrics:
+        - accuracy
+        - f1_score
+        - precision
+        - recall
+    dependencies:
+      - model_training
+    resources:
+      cpu: "2"
+      memory: "4Gi"
+
+  - name: model_deployment
+    function: deploy_model
+    args:
+      deployment_type: "blue_green"
+      rollback_threshold: 0.95
+    dependencies:
+      - model_evaluation
+    retry_policy:
+      max_retries: 2
+      retry_interval: 60
+    resources:
+      cpu: "1"
+      memory: "2Gi"
+
+notifications:
+  on_success:
+    - type: slack
+      channel: "#ml-deployments"
+  on_failure:
+    - type: email
+      recipients:
+        - ml-team@thunderai.com
+    - type: slack
+      channel: "#ml-alerts"
+
+parameters:
+  model_type: "bert"
+  dataset_version: "latest"
+  experiment_tracking: true
+  monitoring_enabled: true 

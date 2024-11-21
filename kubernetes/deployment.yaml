@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: thunderai-deployment
+  labels:
+    app: thunderai
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: thunderai
+  template:
+    metadata:
+      labels:
+        app: thunderai
+    spec:
+      containers:
+      - name: thunderai
+        image: gcr.io/<your-gcp-project-id>/thunderai:latest
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        env:
+        - name: POSTGRES_SERVER
+          value: "db"
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "password"
+        - name: POSTGRES_DB
+          value: "thunderai"
+        - name: REDIS_URL
+          value: "redis://redis:6379"
+        - name: MLFLOW_TRACKING_URI
+          value: "http://mlflow:5000" 

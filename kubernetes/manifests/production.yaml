@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: thunderai-config
+data:
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  PROMETHEUS_MULTIPROC_DIR: "/tmp"
+  MODEL_STORAGE_PATH: "/app/models"
+  MAX_WORKERS: "4"
+  BATCH_SIZE: "32"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: thunderai-secrets
+type: Opaque
+data:
+  database-url: <base64-encoded-db-url>
+  redis-url: <base64-encoded-redis-url>
+  jwt-secret: <base64-encoded-jwt-secret>
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-storage-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: thunderai-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: thunderai
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Pods
+        value: 2
+        periodSeconds: 60 

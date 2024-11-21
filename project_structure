@@ -1,0 +1,16 @@
+Ithunderai/
+├── api/
+│   ├── __init__.py
+│   ├── main.py
+│   └── routes/
+├── core/
+│   ├── __init__.py
+│   ├── model.py
+│   └── preprocessing.py
+├── monitoring/
+│   ├── grafana/
+│   └── prometheus/
+├── tests/
+├── docker/
+├── requirements.txt
+└── README.md 

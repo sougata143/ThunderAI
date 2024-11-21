@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: thunderai-monitoring
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: thunderai-monitoring
+  template:
+    metadata:
+      labels:
+        app: thunderai-monitoring
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+    spec:
+      containers:
+      - name: monitoring
+        image: thunderai-monitoring:latest
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        env:
+        - name: MONITORING_CONFIG
+          valueFrom:
+            configMapKeyRef:
+              name: monitoring-config
+              key: config.yaml
+        - name: GRAFANA_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: monitoring-secrets
+              key: grafana-api-key
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        - name: monitoring-storage
+          mountPath: /var/lib/monitoring
+        - name: monitoring-config
+          mountPath: /etc/monitoring
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 5
+      volumes:
+      - name: monitoring-storage
+        persistentVolumeClaim:
+          claimName: monitoring-storage-pvc
+      - name: monitoring-config
+        configMap:
+          name: monitoring-config
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitoring-config
+data:
+  config.yaml: |
+    monitoring:
+      interval: 60
+      metrics:
+        - name: model_accuracy
+          threshold: 0.9
+          alert_on_breach: true
+        - name: model_latency
+          threshold: 100
+          alert_on_breach: true
+        - name: memory_usage
+          threshold: 0.9
+          alert_on_breach: true
+      alerting:
+        slack_webhook: "https://hooks.slack.com/services/xxx"
+        email_recipients:
+          - alerts@thunderai.com
+      dashboards:
+        update_interval: 300
+        default_timerange: 24h
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: thunderai-monitoring
+spec:
+  selector:
+    app: thunderai-monitoring
+  ports:
+  - port: 8000
+    targetPort: 8000
+  type: ClusterIP
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: thunderai-monitoring-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: thunderai-monitoring
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+    scaleUp:
+      stabilizationWindowSeconds: 60 

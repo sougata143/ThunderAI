@@ -1,0 +1,104 @@
+name: model_evaluation_workflow
+description: "Workflow template for comprehensive model evaluation"
+version: "1.0.0"
+schedule: "0 */6 * * *"  # Every 6 hours
+timeout: 5400  # 1.5 hours
+tags:
+  - evaluation
+  - monitoring
+  - quality
+
+steps:
+  - name: data_drift_detection
+    function: detect_data_drift
+    args:
+      metrics:
+        - ks_test
+        - chi_square_test
+        - psi
+      threshold: 0.1
+    timeout: 900
+    resources:
+      cpu: "2"
+      memory: "4Gi"
+
+  - name: performance_evaluation
+    function: evaluate_model_performance
+    args:
+      metrics:
+        - accuracy
+        - precision
+        - recall
+        - f1_score
+        - roc_auc
+      slice_by:
+        - category
+        - date_range
+    dependencies:
+      - data_drift_detection
+    resources:
+      cpu: "2"
+      memory: "4Gi"
+
+  - name: error_analysis
+    function: analyze_errors
+    args:
+      analysis_types:
+        - confusion_matrix
+        - error_distribution
+        - misclassification_analysis
+      generate_examples: true
+    dependencies:
+      - performance_evaluation
+    resources:
+      cpu: "2"
+      memory: "4Gi"
+
+  - name: explainability_analysis
+    function: generate_explanations
+    args:
+      methods:
+        - shap
+        - lime
+        - integrated_gradients
+      num_samples: 100
+    dependencies:
+      - error_analysis
+    resources:
+      cpu: "4"
+      memory: "8Gi"
+      gpu: "1"
+
+  - name: report_generation
+    function: generate_evaluation_report
+    args:
+      format: "html"
+      include_visualizations: true
+      include_recommendations: true
+    dependencies:
+      - explainability_analysis
+    resources:
+      cpu: "1"
+      memory: "2Gi"
+
+notifications:
+  on_completion:
+    - type: slack
+      channel: "#model-monitoring"
+      include_report: true
+  on_failure:
+    - type: email
+      recipients:
+        - ml-team@thunderai.com
+    - type: pagerduty
+      severity: high
+
+parameters:
+  model_id: "latest"
+  evaluation_dataset: "validation"
+  confidence_threshold: 0.9
+  monitoring_window: "7d"
+  alert_thresholds:
+    accuracy_drop: 0.05
+    drift_score: 0.1
+    latency_increase: 100 

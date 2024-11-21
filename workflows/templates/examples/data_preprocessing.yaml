@@ -1,0 +1,77 @@
+name: data_preprocessing_workflow
+description: "Workflow template for data preprocessing pipeline"
+version: "1.0.0"
+schedule: "0 */4 * * *"  # Every 4 hours
+timeout: 3600  # 1 hour
+tags:
+  - preprocessing
+  - data
+  - etl
+
+steps:
+  - name: data_validation
+    function: validate_input_data
+    args:
+      validation_rules:
+        - min_samples: 1000
+        - max_missing_ratio: 0.1
+        - required_columns: ["text", "label"]
+    timeout: 300
+    resources:
+      cpu: "1"
+      memory: "2Gi"
+
+  - name: text_cleaning
+    function: clean_text_data
+    args:
+      steps:
+        - remove_html
+        - normalize_unicode
+        - remove_special_chars
+        - expand_contractions
+    dependencies:
+      - data_validation
+    resources:
+      cpu: "2"
+      memory: "4Gi"
+
+  - name: feature_extraction
+    function: extract_features
+    args:
+      features:
+        - tfidf
+        - word_embeddings
+        - semantic_features
+      max_features: 10000
+    dependencies:
+      - text_cleaning
+    resources:
+      cpu: "4"
+      memory: "8Gi"
+      gpu: "1"
+
+  - name: data_export
+    function: export_processed_data
+    args:
+      format: "parquet"
+      compression: "snappy"
+      partition_by: "date"
+    dependencies:
+      - feature_extraction
+    resources:
+      cpu: "1"
+      memory: "2Gi"
+
+notifications:
+  on_failure:
+    - type: slack
+      channel: "#data-alerts"
+    - type: email
+      recipients:
+        - data-team@thunderai.com
+
+parameters:
+  input_path: "s3://data/raw"
+  output_path: "s3://data/processed"
+  batch_size: 1000
+  num_workers: 4 
