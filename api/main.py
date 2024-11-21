@@ -1,7 +1,8 @@
-from fastapi import FastAPI
-from api.routes import models, predictions, users
+from fastapi import FastAPI, Depends, HTTPException, status, WebSocket
+from api.routes import models, predictions, users, auth, experiments
 from core.config import settings
 from fastapi.middleware.cors import CORSMiddleware
+from .auth.jwt import verify_token
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -20,22 +21,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers with the API version prefix
+# Include routers
 app.include_router(
-    models.router,
+    auth.router,
     prefix=settings.API_V1_STR,
-    tags=["models"]
+    tags=["auth"]
 )
-app.include_router(
-    predictions.router,
-    prefix=settings.API_V1_STR,
-    tags=["predictions"]
-)
+
 app.include_router(
     users.router,
     prefix=settings.API_V1_STR,
     tags=["users"]
 )
+
+app.include_router(
+    models.router,
+    prefix=settings.API_V1_STR,
+    tags=["models"],
+    dependencies=[Depends(verify_token)]
+)
+
+app.include_router(
+    predictions.router,
+    prefix=settings.API_V1_STR,
+    tags=["predictions"],
+    dependencies=[Depends(verify_token)]
+)
+
+app.include_router(
+    experiments.router,
+    prefix=settings.API_V1_STR,
+    tags=["experiments"],
+    dependencies=[Depends(verify_token)]
+)
+
+# Include WebSocket routes
+app.include_router(models.router)
 
 @app.get("/", tags=["root"])
 async def root():

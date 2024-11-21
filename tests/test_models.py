@@ -1,8 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
-from ..ml.models.bert import BERTModel
-from ..ml.models.gpt import GPTModel
-from ..ml.models.lstm import LSTMModel
+from ml.models.bert import BERTModel
+from ml.models.gpt import GPTModel
+from ml.models.lstm import LSTMModel
 
 @pytest.fixture
 def bert_model():
@@ -43,15 +43,14 @@ def test_gpt_prediction(gpt_model):
     assert isinstance(result["confidence"], float)
     assert len(result["probabilities"]) == 2
 
-@pytest.mark.asyncio
-async def test_model_training_endpoint(client, test_user):
+def test_model_training_endpoint(client, test_user):
     training_data = {
         "texts": ["positive text", "negative text"],
         "labels": [1, 0]
     }
     
-    response = await client.post(
-        "/api/v1/models/train/bert",
+    response = client.post(
+        "/api/v1/train/bert",
         json=training_data,
         headers={"Authorization": f"Bearer {test_user['access_token']}"}
     )

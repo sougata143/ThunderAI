@@ -6,6 +6,9 @@ import numpy as np
 from tqdm import tqdm
 import logging
 from ..monitoring.custom_metrics import MetricsCollector
+import time
+
+logger = logging.getLogger(__name__)
 
 class EarlyStopping:
     """Early stopping handler"""
@@ -69,34 +72,29 @@ class TrainingLogger:
     """Handles logging during training"""
     def __init__(self, model_name: str):
         self.model_name = model_name
-        self.metrics_collector = MetricsCollector()
-        self.logger = logging.getLogger(f"training.{model_name}")
+        self.metrics_collector = MetricsCollector(model_name)
+        self.epoch_start_time = None
     
-    def log_epoch(self, epoch: int, metrics: Dict[str, float]):
-        message = f"Epoch {epoch} - "
-        message += " - ".join([f"{k}: {v:.4f}" for k, v in metrics.items()])
-        self.logger.info(message)
-        
-        # Log metrics to monitoring system
-        for metric_name, value in metrics.items():
-            self.metrics_collector.record_training_metric(
-                model_name=self.model_name,
-                metric_name=metric_name,
-                value=value
-            )
+    def start_epoch(self):
+        self.epoch_start_time = time.time()
     
-    def log_validation(self, metrics: Dict[str, float]):
-        message = "Validation - "
-        message += " - ".join([f"{k}: {v:.4f}" for k, v in metrics.items()])
-        self.logger.info(message)
-        
-        # Log validation metrics
-        for metric_name, value in metrics.items():
-            self.metrics_collector.record_validation_metric(
-                model_name=self.model_name,
-                metric_name=metric_name,
-                value=value
-            )
+    def end_epoch(self, metrics: Dict[str, float]):
+        if self.epoch_start_time:
+            duration = time.time() - self.epoch_start_time
+            self.metrics_collector.record_epoch_duration(duration)
+        self.metrics_collector.record_batch_metrics(metrics)
+    
+    def log_metrics(self, metrics: Dict[str, float]):
+        """Log metrics for the current training step"""
+        try:
+            self.metrics_collector.record_batch_metrics(metrics)
+            
+            # Log to console or file
+            metrics_str = ", ".join(f"{k}: {v:.4f}" for k, v in metrics.items())
+            logger.info(f"Training metrics - {metrics_str}")
+            
+        except Exception as e:
+            logger.error(f"Error logging metrics: {str(e)}")
 
 class GradientClipping:
     """Handles gradient clipping during training"""

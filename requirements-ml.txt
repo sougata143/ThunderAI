@@ -1,0 +1,7 @@
+--find-links https://download.pytorch.org/whl/torch_stable.html
+torch==2.1.2
+torchvision==0.16.2
+torchaudio==2.1.2
+transformers==4.36.2
+tensorflow-macos==2.13.0; platform_system=="Darwin" and platform_machine=="arm64"
+tensorflow==2.13.0; platform_system!="Darwin" or platform_machine!="arm64"

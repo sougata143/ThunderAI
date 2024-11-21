@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional, Callable, AsyncIterator
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -6,6 +6,13 @@ import logging
 from .utils import EarlyStopping, MetricTracker, TrainingLogger, GradientClipping
 from ..monitoring.custom_metrics import MetricsCollector
 from ..evaluation.evaluation_service import ModelEvaluator
+import asyncio
+from ml.models.bert import BERTModel
+from ml.models.gpt import GPTModel
+from ml.models.transformer import TransformerModel
+from ml.models.lstm import LSTMModel
+
+logger = logging.getLogger(__name__)
 
 class TrainingPipeline:
     def __init__(
@@ -166,3 +173,95 @@ class TrainingPipeline:
         if self.config.get('monitor_mode', 'min') == 'min':
             return current < best
         return current > best 
+
+class ModelTrainingPipeline:
+    def __init__(self, model_type: str, params: Dict):
+        self.model_type = model_type
+        self.params = params
+        self.status = "initialized"
+        self.progress = 0
+        self.current_epoch = 0
+        self.metrics = {
+            "loss": [],
+            "accuracy": []
+        }
+        self._should_stop = False
+        self._subscribers = set()
+        
+        # Initialize model based on type
+        self.model = self._create_model()
+        
+    def _create_model(self):
+        if self.model_type == "bert":
+            return BERTModel()
+        elif self.model_type == "gpt":
+            return GPTModel()
+        elif self.model_type == "transformer":
+            return TransformerModel()
+        elif self.model_type == "lstm":
+            return LSTMModel()
+        else:
+            raise ValueError(f"Unsupported model type: {self.model_type}")
+    
+    async def train(self):
+        """Start the training process"""
+        try:
+            self.status = "training"
+            # Convert epochs to integer and ensure it's positive
+            total_epochs = max(1, int(self.params.get("epochs", 10)))
+            
+            for epoch in range(total_epochs):
+                if self._should_stop:
+                    self.status = "stopped"
+                    break
+                    
+                self.current_epoch = epoch
+                
+                # Simulate training step
+                await asyncio.sleep(1)  # Replace with actual training
+                
+                # Update metrics
+                self.metrics["loss"].append(1.0 - (epoch / total_epochs))
+                self.metrics["accuracy"].append(epoch / total_epochs)
+                
+                # Update progress
+                self.progress = ((epoch + 1) / total_epochs) * 100
+                
+                # Notify subscribers
+                await self._notify_subscribers()
+            
+            if not self._should_stop:
+                self.status = "completed"
+                
+        except Exception as e:
+            logger.error(f"Training error: {str(e)}")
+            self.status = "failed"
+            raise
+            
+    async def stop(self):
+        """Stop the training process"""
+        self._should_stop = True
+        
+    async def get_updates(self) -> AsyncIterator[Dict]:
+        """Subscribe to training updates"""
+        queue = asyncio.Queue()
+        self._subscribers.add(queue)
+        
+        try:
+            while True:
+                update = await queue.get()
+                yield update
+        finally:
+            self._subscribers.remove(queue)
+            
+    async def _notify_subscribers(self):
+        """Send updates to all subscribers"""
+        update = {
+            "status": self.status,
+            "progress": self.progress,
+            "currentEpoch": self.current_epoch,
+            "metrics": self.metrics
+        }
+        
+        for queue in self._subscribers:
+            await queue.put(update)

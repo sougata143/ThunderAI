@@ -8,7 +8,8 @@ setup(
         "fastapi>=0.100.0",
         "uvicorn>=0.27.0",
         "python-jose[cryptography]",
-        "passlib[bcrypt]",
+        "passlib[bcrypt]>=1.7.4",
+        "bcrypt>=4.0.1",
         "python-multipart",
         "sqlalchemy>=2.0.25",
         "psycopg2-binary>=2.9.9",
@@ -16,18 +17,33 @@ setup(
         "prometheus-client>=0.19.0",
         "plotly",
         "networkx",
-        "torch>=2.1.2",
-        "transformers>=4.36.2",
         "numpy>=1.24.3",
         "pandas>=2.0.3",
         "scikit-learn>=1.3.2",
-        "spacy>=3.7.2",
         "typing-extensions>=4.6.0",
-        "tensorflow-macos>=2.13.0",
         "pydantic>=2.0.0",
+        "pydantic[email]",
+        "email-validator>=2.0.0",
         "mlflow>=2.9.2",
         "fastapi-cache2>=0.2.1",
-        "pydantic-settings>=2.0.0"
+        "pydantic-settings>=2.0.0",
+        "httpx>=0.24.0"
     ],
-    python_requires=">=3.8,<3.12",
+    python_requires=">=3.10,<3.12",
+    extras_require={
+        'ml': [
+            'torch',
+            'torchvision',
+            'torchaudio',
+            'transformers>=4.36.2',
+        ],
+        'apple': [
+            'tensorflow-macos',
+            'tensorflow-metal',
+        ],
+        'nvidia': [
+            'tensorflow',
+            'cuda-python',
+        ]
+    }
 )
