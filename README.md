@@ -1,136 +1,125 @@
-# ThunderAI
+# ThunderAI - Advanced Machine Learning Platform
 
-ThunderAI is a comprehensive machine learning platform that provides model training, monitoring, and deployment capabilities with an interactive dashboard for visualization and analysis.
+ThunderAI is a comprehensive machine learning platform that provides an intuitive interface for training, managing, and deploying machine learning models. It supports multiple model architectures including BERT, GPT, LSTM, and custom transformers.
 
 ## Features
 
-- 🤖 Multiple ML Model Support (BERT, GPT, LSTM, CNN)
-- 📊 Real-time Model Monitoring
-- 🔄 Automated Model Retraining
-- 📈 Interactive Dashboards
-- 🧪 A/B Testing Framework
-- 🔍 Advanced Analytics
-- 🔐 Authentication & Authorization
-- 📦 Docker Support
-- ☁️ Cloud Deployment (AWS/GCP)
+### 1. Model Training
+- Support for multiple model architectures:
+  - BERT for classification and sequence tasks
+  - GPT for text generation
+  - LSTM for sequence modeling
+  - Custom transformers
+- Real-time training monitoring
+- Advanced hyperparameter configuration
+- Training metrics visualization
+- Automatic model checkpointing
 
-## Prerequisites
+### 2. Experiment Management
+- Track multiple experiments
+- Compare model performances
+- Export experiment results
+- Detailed metrics and visualizations
+- Experiment versioning
 
-- Python 3.11+
-- PostgreSQL
-- Redis
-- Node.js 16+
-- Docker (optional)
-- CUDA-compatible GPU (optional)
+### 3. Model Monitoring
+- Real-time performance metrics
+- Resource utilization tracking
+- Custom metric definitions
+- Alert configuration
+- Performance dashboards
 
-## Installation
+### 4. User Management
+- Secure authentication
+- Role-based access control
+- Guest access with limited functionality
+- Profile management
+
+## Getting Started
+
+### Prerequisites
+- Python 3.10 or higher
+- Node.js 14 or higher
+- PostgreSQL database
+- Redis (for caching)
+
+### Installation
 
 1. Clone the repository:
 git clone https://github.com/yourusername/thunderai.git
 cd thunderai
 
-2. Set up the Python environment:
-### Create and activate virtual environment
-python -m venv venv
-source venv/bin/activate # On Windows: venv\Scripts\activate
-### Install dependencies
+2. Set up the backend:
+```bash
+# Create and activate virtual environment
+python -m venv thunderai-env
+source thunderai-env/bin/activate  # On Windows: thunderai-env\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
-### Install required language models
-python -m spacy download en_core_web_sm
-python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
+
+# Initialize database
+./scripts/init_db.sh
+```
 
 3. Set up the frontend:
-cd frontend
+```bash
+# Install dependencies
 npm install
 
-4. Configure environment variables:
-### Create .env file in root directory
-cp .env.example .env
-### Edit .env with your configurations
-nano .env
-
-
-## Database Setup
-
-1. Create PostgreSQL database:
-createdb thunderai
-
-2. Run migrations:
-alembic upgrade head
-
-
-## Running the Application
-
-1. Start the backend server:
-### From the root directory
-uvicorn api.main:app --reload --port 8000
-
-2. Start the frontend development server:
-### From the frontend directory
+# Start development server
 npm start
+```
 
-3. Start Redis server:
-redis-server
+### Configuration
 
-## Docker Deployment
+1. Create a `.env` file in the root directory:
+```env
+DATABASE_URL=postgresql://user:password@localhost:5432/thunderai
+SECRET_KEY=your-secret-key
+REDIS_URL=redis://localhost
+```
 
-1. Build and run using Docker Compose:
-docker-compose up --build
+2. Configure model paths and other settings in `core/config.py`
 
-## Cloud Deployment
+## Usage Guide
 
-### AWS
-### Configure AWS credentials
-aws configure
-### Deploy using Terraform
-cd terraform/aws
-terraform init
-terraform apply
+### 1. Training Models
 
-### GCP
+#### Starting a New Training
+1. Navigate to the Dashboard
+2. Select model type (BERT, GPT, LSTM, Transformer)
+3. Configure training parameters:
+   - Learning rate
+   - Batch size
+   - Number of epochs
+   - Validation split
+4. Click "Start Training"
 
-### Configure GCP credentials
-gcloud auth login
-### Deploy using Terraform
-cd terraform/gcp
-terraform init
-terraform apply
+#### Monitoring Training
+- View real-time metrics
+- Monitor loss and accuracy curves
+- Check resource utilization
+- Stop training if needed
 
+### 2. Managing Experiments
 
-## API Documentation
+#### Viewing Experiments
+1. Navigate to Experiments page
+2. View list of all experiments
+3. Check status, metrics, and results
+4. Compare different experiments
 
-Access the API documentation at:
-- Swagger UI: `http://localhost:8000/api/v1/docs`
-- ReDoc: `http://localhost:8000/api/v1/redoc`
+#### Experiment Actions
+- Start/Stop experiments
+- Export results
+- Delete experiments
+- View detailed metrics
 
-## Monitoring
+### 3. Model Evaluation
 
-1. Access Grafana dashboards:
-http://localhost:3000
-
-2. View Prometheus metrics:
-http://localhost:9090
-
-## Testing
-
-Run the test suite:
-### Run all tests
-pytest
-### Run specific test file
-pytest tests/test_models.py
-Run with coverage report
-pytest --cov=.
-
-## Project Structure
-thunderai/
-├── api/ # FastAPI application
-├── ml/ # Machine learning models
-├── monitoring/ # Monitoring configuration
-├── frontend/ # React frontend
-├── tests/ # Test files
-├── docker/ # Docker configuration
-├── terraform/ # Infrastructure as Code
-└── docs/ # Documentation
+#### Performance Analysis
+- View accuracy
 
 ## Contributing
 
