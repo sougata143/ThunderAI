@@ -7,6 +7,7 @@ class ModelRegistry:
         mlflow.set_tracking_uri(tracking_uri)
         
     def register_model(self, model: Any, name: str, metrics: Dict[str, float]):
+        """Register trained model with metrics"""
         with mlflow.start_run():
             mlflow.log_metrics(metrics)
             

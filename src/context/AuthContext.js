@@ -1,53 +1,27 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
-import axios from 'axios';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [user, setUser] = useState(JSON.parse(localStorage.getItem('user')));
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      verifyToken(token);
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  const verifyToken = async (token) => {
-    try {
-      const response = await axios.get('/api/v1/auth/verify', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setUser(response.data);
-      setIsAuthenticated(true);
-    } catch (error) {
-      localStorage.removeItem('token');
-    } finally {
-      setLoading(false);
-    }
+  const login = (userData, accessToken) => {
+    setUser(userData);
+    setToken(accessToken);
+    localStorage.setItem('token', accessToken);
+    localStorage.setItem('user', JSON.stringify(userData));
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    setIsAuthenticated(false);
     setUser(null);
+    setToken(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
   };
 
   return (
-    <AuthContext.Provider 
-      value={{ 
-        isAuthenticated, 
-        setIsAuthenticated, 
-        user, 
-        setUser, 
-        loading,
-        logout 
-      }}
-    >
+    <AuthContext.Provider value={{ user, token, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -45,39 +45,15 @@ class ModelTestFramework:
             'integration': self._create_integration_suite()
         }
     
-    def run_test_suite(
-        self,
-        model_id: str,
-        suite_name: str,
-        custom_test_cases: Optional[List[TestCase]] = None
-    ) -> Dict[str, Any]:
-        """Run a complete test suite"""
-        try:
-            # Load model
-            model = self.model_registry.load_model(model_id)
-            
-            # Get test cases
-            test_cases = self.test_suites[suite_name]
-            if custom_test_cases:
-                test_cases.extend(custom_test_cases)
-            
-            # Run tests
-            results = []
-            for test_case in test_cases:
-                result = self._run_test_case(model, test_case)
-                results.append(result)
-                
-                # Record metrics
-                self._record_test_metrics(model_id, result)
-            
-            # Generate report
-            report = self._generate_test_report(results)
-            
-            return report
-            
-        except Exception as e:
-            logging.error(f"Error running test suite: {str(e)}")
-            raise
+    def run_test_suite(self, model_id: str) -> Dict[str, Any]:
+        """Run comprehensive test suite"""
+        test_results = {
+            'functional_tests': self.run_functional_tests(model_id),
+            'performance_tests': self.run_performance_tests(model_id),
+            'robustness_tests': self.run_robustness_tests(model_id),
+            'integration_tests': self.run_integration_tests(model_id)
+        }
+        return test_results
     
     def _create_functional_suite(self) -> List[TestCase]:
         """Create functional test cases"""

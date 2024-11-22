@@ -144,4 +144,15 @@ class MonitoringService:
             version=version,
             metric_name="loading_time",
             value=loading_time
-        ) 
+        )
+    
+    def setup_model_monitoring(self, model_id: str):
+        """Setup monitoring for deployed model"""
+        # Configure performance monitoring
+        self.monitor_model_performance(model_id)
+        
+        # Configure resource monitoring
+        self.monitor_resource_usage(model_id)
+        
+        # Setup alerts
+        self.setup_model_alerts(model_id) 

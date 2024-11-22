@@ -1,111 +1,100 @@
 import React from 'react';
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider } from '@mui/material/styles';
+import theme from './theme';
 import Navigation from './components/Navigation';
-import Home from './components/Home';
-import Model from './components/Model';
-import Dashboard from './components/Dashboard';
-import Experiments from './components/Experiments';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
-import { ThemeProvider, createTheme, CircularProgress, Box } from '@mui/material';
-import './App.css';
-import ErrorBoundary from './components/common/ErrorBoundary';
+import Dashboard from './components/Dashboard';
+import Experiments from './components/experiments/Experiments';
+import ModelTraining from './components/model/ModelTraining';
+import ModelEvaluation from './components/model/ModelEvaluation';
+import ModelDeployment from './components/model/ModelDeployment';
+import ModelMonitoring from './components/model/ModelMonitoring';
+import Profile from './components/profile/Profile';
+import PrivateRoute from './components/auth/PrivateRoute';
 import { useSelector } from 'react-redux';
-import { useEffect } from 'react';
-import { setupAxiosInterceptors } from './services/authMiddleware';
-import axios from 'axios';
-import Profile from './components/Profile';
-
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#1976d2',
-    },
-    secondary: {
-      main: '#dc004e',
-    },
-  },
-});
-
-function PrivateRoute({ children, requiresAuth = true, allowGuest = true }) {
-  const { user, isGuest, loading } = useSelector(state => state.auth);
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  useEffect(() => {
-    if (loading) return;
-    
-    if (!user) {
-      navigate('/login', { replace: true });
-      return;
-    }
-
-    if (isGuest && !allowGuest) {
-      navigate('/dashboard', { replace: true });
-    }
-  }, [user, isGuest, allowGuest, loading, navigate]);
-
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  return children;
-}
+import { AuthProvider } from './context/AuthContext';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 function App() {
-  useEffect(() => {
-    setupAxiosInterceptors(axios);
-  }, []);
+  const { token } = useSelector(state => state.auth);
 
   return (
-    <ThemeProvider theme={theme}>
-      <ErrorBoundary>
-        <div className="App">
-          <Navigation />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route
-              path="/dashboard"
-              element={
-                <PrivateRoute allowGuest={true}>
-                  <Dashboard />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/experiments"
-              element={
-                <PrivateRoute allowGuest={false}>
-                  <Experiments />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/model"
-              element={
-                <PrivateRoute allowGuest={false}>
-                  <Model />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <PrivateRoute allowGuest={false}>
-                  <Profile />
-                </PrivateRoute>
-              }
-            />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-        </div>
-      </ErrorBoundary>
-    </ThemeProvider>
+    <AuthProvider>
+      <ThemeProvider theme={theme}>
+        <ErrorBoundary>
+          <div className="App">
+            <Navigation />
+            <Routes>
+              <Route path="/login" element={
+                token ? <Navigate to="/dashboard" replace /> : <Login />
+              } />
+              <Route path="/register" element={
+                token ? <Navigate to="/dashboard" replace /> : <Register />
+              } />
+              <Route
+                path="/dashboard"
+                element={
+                  <PrivateRoute>
+                    <Dashboard />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/experiments"
+                element={
+                  <PrivateRoute>
+                    <Experiments />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/model/training"
+                element={
+                  <PrivateRoute>
+                    <ModelTraining />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/model/evaluation"
+                element={
+                  <PrivateRoute>
+                    <ModelEvaluation />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/model/deployment"
+                element={
+                  <PrivateRoute>
+                    <ModelDeployment />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/model/monitoring"
+                element={
+                  <PrivateRoute>
+                    <ModelMonitoring />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <PrivateRoute>
+                    <Profile />
+                  </PrivateRoute>
+                }
+              />
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </div>
+        </ErrorBoundary>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
 

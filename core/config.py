@@ -1,44 +1,37 @@
 from pydantic_settings import BaseSettings
-from typing import List, Optional
+from typing import List
+import json
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "ThunderAI"
     VERSION: str = "1.0.0"
-    API_V1_STR: str = "/api/v1"
-    ENV: str = "development"
-    
-    # Database settings
-    DATABASE_URL: str = "postgresql://thunderai_user:mypass@localhost:5432/thunderai"
-    TEST_DATABASE_URL: str = "postgresql://thunderai_user:mypass@localhost:5432/thunderai_test"
-    
-    # JWT settings
-    SECRET_KEY: str = "your-secret-key"  # Change in production
-    ALGORITHM: str = "HS256"
+    DATABASE_URL: str
+    SECRET_KEY: str
+    BACKEND_CORS_ORIGINS: List[str]
+    REACT_APP_BACKEND_URL: str | None = None
+    USE_CACHE: bool = False
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ALGORITHM: str = "HS256"
     
-    # CORS settings
-    BACKEND_CORS_ORIGINS: List[str] = ["*"]  # Change in production
+    REDIS_HOST: str | None = None
+    REDIS_PORT: int | None = None
+    REDIS_PASSWORD: str | None = None
     
-    # Model settings
-    MODEL_PATH: str = "models"
-    
-    # Cache settings
-    REDIS_URL: str = "redis://localhost"
-    CACHE_TTL: int = 60  # Cache time to live in seconds
-    
-    # Model Registry settings
-    MLFLOW_TRACKING_URI: str = "sqlite:///mlflow.db"
-    
-    # Guest settings
-    GUEST_TOKEN_EXPIRE_MINUTES: int = 15  # Shorter expiry for guest tokens
-    GUEST_ALLOWED_ENDPOINTS: List[str] = [
-        "/api/v1/models",
-        "/api/v1/predictions"
-    ]
-    
+    SMTP_TLS: bool = True
+    SMTP_PORT: int | None = None
+    SMTP_HOST: str | None = None
+    SMTP_USER: str | None = None
+    SMTP_PASSWORD: str | None = None
+    EMAILS_FROM_EMAIL: str | None = None
+    EMAILS_FROM_NAME: str | None = None
+
     class Config:
         env_file = ".env"
-        case_sensitive = True
-        extra = "allow"  # Allow extra fields from environment variables
+
+        @classmethod
+        def parse_env_var(cls, field_name: str, raw_val: str):
+            if field_name == "BACKEND_CORS_ORIGINS":
+                return json.loads(raw_val)
+            return raw_val
 
 settings = Settings() 

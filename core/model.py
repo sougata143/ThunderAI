@@ -1,43 +1,71 @@
-import torch
-import tensorflow as tf
-import numpy as np
-from typing import Union, List
-import spacy
-import nltk
-from transformers import pipeline
+from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.sql import func
+from pydantic import BaseModel, ConfigDict
+from typing import Optional
+from datetime import datetime
 
-class ThunderAIModel:
-    def __init__(self):
-        self.nlp = spacy.load("en_core_web_sm")
-        self.pytorch_model = self._init_pytorch_model()
-        self.tensorflow_model = self._init_tensorflow_model()
-        self.sentiment_analyzer = pipeline("sentiment-analysis")
-        
-    def _init_pytorch_model(self):
-        # Initialize PyTorch model
-        model = torch.nn.Sequential(
-            torch.nn.Linear(768, 512),
-            torch.nn.ReLU(),
-            torch.nn.Linear(512, 256),
-            torch.nn.ReLU(),
-            torch.nn.Linear(256, 128)
-        )
-        return model
-    
-    def _init_tensorflow_model(self):
-        # Initialize TensorFlow model
-        model = tf.keras.Sequential([
-            tf.keras.layers.Dense(512, activation='relu'),
-            tf.keras.layers.Dense(256, activation='relu'),
-            tf.keras.layers.Dense(128, activation='relu')
-        ])
-        return model
-    
-    def preprocess_text(self, text: str) -> List[str]:
-        # Process text using both SpaCy and NLTK
-        doc = self.nlp(text)
-        tokens = nltk.word_tokenize(text)
-        return [token.lower_ for token in doc], tokens
-    
-    def analyze_sentiment(self, text: str) -> dict:
-        return self.sentiment_analyzer(text)[0] 
+Base = declarative_base()
+
+# SQLAlchemy Models
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    email = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    full_name = Column(String)
+    organization = Column(String)
+    job_title = Column(String)
+    settings = Column(String)
+
+# Pydantic Models
+class UserBase(BaseModel):
+    username: str
+    email: str
+    full_name: Optional[str] = None
+    organization: Optional[str] = None
+    job_title: Optional[str] = None
+    is_active: bool = True
+
+    model_config = ConfigDict(from_attributes=True)
+
+class UserInDB(UserBase):
+    id: int
+    hashed_password: str
+    created_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class UserSettingsDB(Base):
+    __tablename__ = "user_settings"
+
+    user_id = Column(Integer, primary_key=True)
+    model_update_alerts = Column(Boolean, default=True)
+    performance_alerts = Column(Boolean, default=True)
+    collaboration_notifications = Column(Boolean, default=True)
+
+# Pydantic Models for API
+class UserSettings(BaseModel):
+    model_update_alerts: bool = True
+    performance_alerts: bool = True
+    collaboration_notifications: bool = True
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        protected_namespaces=()
+    )
+
+class UserSettingsResponse(BaseModel):
+    user_id: int
+    model_update_alerts: bool
+    performance_alerts: bool
+    collaboration_notifications: bool
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        protected_namespaces=()
+    ) 

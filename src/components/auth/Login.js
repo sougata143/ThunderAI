@@ -1,147 +1,135 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
-import { login, loginAsGuest } from '../../store/slices/authSlice';
-import { 
-    Container, 
-    Paper, 
-    Typography, 
-    Box, 
-    TextField, 
-    Button, 
-    Divider,
-    Alert
+import {
+  Container,
+  Paper,
+  TextField,
+  Button,
+  Typography,
+  Box,
+  Alert,
+  Link
 } from '@mui/material';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { login } from '../../store/slices/authSlice';
+import { useAuth } from '../../context/AuthContext';
 
-const Login = () => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
-    const navigate = useNavigate();
-    const dispatch = useDispatch();
+function Login() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const dispatch = useDispatch();
+  const { error: authError, status, token } = useSelector(state => state.auth);
+  const { login: authLogin } = useAuth();
+  
+  const [formData, setFormData] = useState({
+    username: '',
+    password: ''
+  });
+  const [error, setError] = useState(null);
 
-    const { token, user } = useSelector((state) => state.auth);
+  useEffect(() => {
+    if (token && location.pathname === '/login') {
+      const from = location.state?.from?.pathname || '/dashboard';
+      navigate(from, { replace: true });
+    }
+  }, [token, navigate, location]);
 
-    useEffect(() => {
-        if (token && user) {
-            navigate('/dashboard');
-        }
-    }, [token, user, navigate]);
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+    setError(null);
+  };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setError('');
-        
-        try {
-            const result = await dispatch(login({ email, password })).unwrap();
-            console.log('Login response:', result);
-            
-            if (result.access_token) {
-                navigate('/dashboard');
-            } else {
-                setError('Invalid response from server');
-            }
-        } catch (err) {
-            console.error('Login error:', err);
-            setError(err.message || 'Invalid credentials. Please try again.');
-        }
-    };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
 
-    const handleGuestLogin = async () => {
-        const result = await dispatch(loginAsGuest());
-        if (!result.error) {
-            navigate('/dashboard');
-        }
-    };
+    if (!formData.username.trim()) {
+      setError('Username is required');
+      return;
+    }
+    if (!formData.password) {
+      setError('Password is required');
+      return;
+    }
 
-    return (
-        <Container component="main" maxWidth="xs">
-            <Box
-                sx={{
-                    marginTop: 8,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                }}
+    try {
+      const result = await dispatch(login(formData)).unwrap();
+      authLogin(result.user, result.token);
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.message || 'Login failed');
+      console.error('Login error:', err);
+    }
+  };
+
+  return (
+    <Container maxWidth="sm">
+      <Box sx={{ mt: 8 }}>
+        <Paper elevation={3} sx={{ p: 4 }}>
+          <Typography variant="h5" component="h1" gutterBottom align="center">
+            Login to ThunderAI
+          </Typography>
+
+          {(error || authError) && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error || authError}
+            </Alert>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            <TextField
+              fullWidth
+              label="Username"
+              name="username"
+              value={formData.username}
+              onChange={handleChange}
+              margin="normal"
+              required
+              autoFocus
+              error={!!error && !formData.username}
+              helperText={error && !formData.username ? 'Username is required' : ''}
+            />
+
+            <TextField
+              fullWidth
+              label="Password"
+              name="password"
+              type="password"
+              value={formData.password}
+              onChange={handleChange}
+              margin="normal"
+              required
+              error={!!error && !formData.password}
+              helperText={error && !formData.password ? 'Password is required' : ''}
+            />
+
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              sx={{ mt: 3, mb: 2 }}
+              disabled={status === 'loading'}
             >
-                <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
-                    <Typography component="h1" variant="h5" align="center" gutterBottom>
-                        Welcome Back
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary" align="center" sx={{ mb: 3 }}>
-                        Sign in to continue to ThunderAI
-                    </Typography>
+              {status === 'loading' ? 'Logging in...' : 'Login'}
+            </Button>
 
-                    {error && (
-                        <Alert severity="error" sx={{ mb: 3 }}>
-                            {error}
-                        </Alert>
-                    )}
-
-                    <Box component="form" onSubmit={handleSubmit} noValidate>
-                        <TextField
-                            margin="normal"
-                            required
-                            fullWidth
-                            id="email"
-                            label="Email Address"
-                            name="email"
-                            autoComplete="email"
-                            autoFocus
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                        />
-                        <TextField
-                            margin="normal"
-                            required
-                            fullWidth
-                            name="password"
-                            label="Password"
-                            type="password"
-                            id="password"
-                            autoComplete="current-password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                        />
-                        <Button
-                            type="submit"
-                            fullWidth
-                            variant="contained"
-                            sx={{ mt: 3, mb: 2 }}
-                        >
-                            Sign In
-                        </Button>
-
-                        <Divider sx={{ my: 2 }}>or</Divider>
-
-                        <Button
-                            fullWidth
-                            variant="outlined"
-                            onClick={handleGuestLogin}
-                            sx={{ mb: 2 }}
-                        >
-                            Continue as Guest
-                        </Button>
-
-                        <Box sx={{ mt: 2, textAlign: 'center' }}>
-                            <Typography variant="body2" color="textSecondary">
-                                Don't have an account?{' '}
-                                <Link 
-                                    to="/register"
-                                    style={{ 
-                                        color: 'primary.main', 
-                                        textDecoration: 'none' 
-                                    }}
-                                >
-                                    Sign up
-                                </Link>
-                            </Typography>
-                        </Box>
-                    </Box>
-                </Paper>
+            <Box sx={{ textAlign: 'center' }}>
+              <Link
+                component="button"
+                variant="body2"
+                onClick={() => navigate('/register')}
+              >
+                Don't have an account? Register
+              </Link>
             </Box>
-        </Container>
-    );
-};
+          </form>
+        </Paper>
+      </Box>
+    </Container>
+  );
+}
 
 export default Login;

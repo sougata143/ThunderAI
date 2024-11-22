@@ -1,197 +1,263 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status, WebSocket
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status, WebSocket, Request
 from typing import Dict, Any, Optional, List
-from api.auth.jwt import verify_token
-from ml.versioning.model_registry import ModelRegistry
-from ml.monitoring.metrics import MODEL_TRAINING_TIME
-from db.crud import create_model_record
-from ml.models.bert import BERTModel
-from api.schemas.training import TrainingData, TrainingConfig, TrainingResponse, TrainingStatus
-import time
+from pydantic import BaseModel, Field, ValidationError
 import logging
 import uuid
 import asyncio
-from ml.training.pipeline_manager import ModelTrainingPipeline
-from core.config import settings
+from api.auth.jwt import verify_token
+import random
+import time
+from core.auth import get_current_user
+from core.model import UserInDB
 
-router = APIRouter()
-model_registry = ModelRegistry(tracking_uri="sqlite:///mlflow.db")
+# Create router instance
+router = APIRouter(
+    tags=["models"]
+)
+
 logger = logging.getLogger(__name__)
 
+class TrainingParams(BaseModel):
+    model_type: str = Field(default="bert")
+    optimizer: str = Field(default="adam")
+    loss: str = Field(default="categorical_crossentropy")
+    metrics: List[str] = Field(default=["accuracy"])
+    validation_split: float = Field(default=0.2)
+    shuffle: bool = Field(default=True)
+    verbose: int = Field(default=1)
+    batch_size: int = Field(default=32)
+    epochs: int = Field(default=10)
+    learning_rate: float = Field(default=0.001)
+
+    class Config:
+        protected_namespaces = ()
+
+class TrainingRequest(BaseModel):
+    training_params: TrainingParams
+
 # Store active training sessions
-active_trainings: Dict[str, ModelTrainingPipeline] = {}
+active_trainings: Dict[str, Dict[str, Any]] = {}
 
-@router.post("/models/train/{model_name}")
-async def train_model(
-    model_name: str,
-    training_data: Dict[str, Any],
-    background_tasks: BackgroundTasks,
-    hyperparameters: Optional[Dict[str, Any]] = None,
-    token: dict = Depends(verify_token)
-):
-    async def train_model_task(data: Dict[str, Any], params: Dict[str, Any]):
-        start_time = time.time()
-        try:
-            # Initialize and train model
-            model = get_model_class(model_name)(params)
-            metrics = model.train(data)
-            
-            # Register model with MLflow
-            model_info = model_registry.register_model(
-                model=model,
-                name=model_name,
-                metrics=metrics
-            )
-            
-            # Record training time
-            training_time = time.time() - start_time
-            MODEL_TRAINING_TIME.labels(
-                model_name=model_name,
-                version=model_info.version
-            ).observe(training_time)
-            
-            # Create database record
-            create_model_record(
-                name=model_name,
-                version=model_info.version,
-                metrics=metrics
-            )
-            
-        except Exception as e:
-            logger.error(f"Training failed for {model_name}: {str(e)}")
-            raise
-    
-    background_tasks.add_task(
-        train_model_task,
-        training_data,
-        hyperparameters or {}
-    )
-    
-    return {"message": "Model training started", "model_name": model_name}
-
-@router.get("/models/{model_name}/versions")
-async def list_model_versions(
-    model_name: str,
-    token: dict = Depends(verify_token)
-):
-    return model_registry.list_versions(model_name)
-
-@router.post("/models/{model_name}/deploy/{version}")
-async def deploy_model(
-    model_name: str,
-    version: str,
-    token: dict = Depends(verify_token)
-):
-    return model_registry.deploy_model(model_name, version)
-
-@router.post("/train/bert", status_code=status.HTTP_200_OK)
-async def train_bert_model(
-    training_data: TrainingData,
-    token_data: Dict = Depends(verify_token)
-):
-    """Train a BERT model with the provided data"""
-    try:
-        # Initialize model
-        config = {
-            "max_length": 512,
-            "num_labels": 2,
-            "batch_size": 32
-        }
-        model = BERTModel(config)
-        
-        # Convert Pydantic model to dict for training
-        train_data_dict = training_data.model_dump()
-        
-        # Train model
-        metrics = model.train(train_data_dict)
-        
-        # Save model (you might want to add a unique identifier)
-        model.save("models/bert_latest.pt")
-        
-        return {
-            "message": "Model trained successfully",
-            "model_name": "bert_latest",
-            "metrics": metrics
-        }
-        
-    except Exception as e:
-        logger.error(f"Training failed: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        ) 
+def get_pipeline(model_type: str, params: Dict[str, Any]):
+    from ml.training.pipeline_manager import ModelTrainingPipeline
+    return ModelTrainingPipeline(model_type=model_type, params=params)
 
 @router.post("/models/train")
-async def start_training(config: TrainingConfig, background_tasks: BackgroundTasks):
+async def start_training(
+    training_params: TrainingParams,
+    background_tasks: BackgroundTasks,
+    current_user: Optional[UserInDB] = None
+):
     """Start model training"""
     try:
+        logger.info(f"Received training request: {training_params}")
+        
+        # Convert training params to dict and add user_id
+        config_dict = training_params.dict()
+        if current_user:
+            config_dict["user_id"] = current_user.id
+        else:
+            config_dict["user_id"] = None
+        
         # Generate unique model ID
         model_id = str(uuid.uuid4())
         
-        # Initialize training pipeline
-        pipeline = ModelTrainingPipeline(
-            model_type=config.modelType,
-            params=config.params
+        # Create training pipeline with config
+        pipeline = get_pipeline(
+            model_type=config_dict['model_type'],
+            params=config_dict
         )
         
-        # Store in active trainings
-        active_trainings[model_id] = pipeline
+        # Store active training
+        active_trainings[model_id] = {
+            'pipeline': pipeline,
+            'status': 'starting',
+            'user_id': config_dict["user_id"]
+        }
         
         # Start training in background
         background_tasks.add_task(pipeline.train)
         
-        return TrainingResponse(
-            modelId=model_id,
-            status="started",
-            message="Training started successfully"
-        )
+        return {
+            'model_id': model_id,
+            'status': 'starting'
+        }
         
+    except ValidationError as e:
+        logger.error(f"Validation error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
     except Exception as e:
-        logger.error(f"Training failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Failed to start training: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@router.get("/models/{model_id}/status")
+async def get_training_status(model_id: str):
+    if model_id not in active_trainings:
+        raise HTTPException(status_code=404, detail="Training job not found")
+    
+    job = active_trainings[model_id]
+    return {
+        "status": job.pipeline.status,
+        "progress": job.pipeline.progress,
+        "metrics": job.pipeline.get_metrics()
+    }
 
 @router.post("/models/{model_id}/stop")
-async def stop_training(model_id: str):
-    """Stop model training"""
+async def stop_training(
+    model_id: str,
+    token: dict = Depends(verify_token)
+):
+    """Stop a running training job"""
     if model_id not in active_trainings:
-        raise HTTPException(status_code=404, detail="Training session not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Training job not found"
+        )
     
     try:
-        pipeline = active_trainings[model_id]
-        await pipeline.stop()
-        return {"status": "stopped", "message": "Training stopped successfully"}
+        job = active_trainings[model_id]
+        pipeline = job['pipeline']
+        pipeline._should_stop = True  # Set stop flag
+        pipeline.status = "completed"  # Update status
+        
+        # Wait briefly for training to stop
+        await asyncio.sleep(1)
+        
+        # Update job status instead of removing it
+        job['status'] = 'completed'
+        
+        return {
+            "status": "stopped",
+            "message": "Training stopped successfully"
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Failed to stop training job {model_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to stop training: {str(e)}"
+        )
 
-@router.get("/{model_id}/status", response_model=TrainingStatus)
-async def get_training_status(model_id: str):
-    """Get training status"""
-    if model_id not in active_trainings:
-        raise HTTPException(status_code=404, detail="Training session not found")
-    
-    pipeline = active_trainings[model_id]
-    return TrainingStatus(
-        modelId=model_id,
-        status=pipeline.status,
-        progress=pipeline.progress,
-        currentEpoch=pipeline.current_epoch,
-        metrics=pipeline.metrics
-    )
-
-@router.websocket("/ws/training/{model_id}")
-async def websocket_endpoint(websocket: WebSocket, model_id: str):
+@router.websocket("/models/ws/training/{model_id}")
+async def training_websocket(websocket: WebSocket, model_id: str):
     """WebSocket endpoint for real-time training updates"""
     await websocket.accept()
     
+    if model_id not in active_trainings:
+        await websocket.send_json({
+            "error": "Training job not found"
+        })
+        await websocket.close()
+        return
+    
     try:
-        if model_id not in active_trainings:
-            await websocket.close(code=4004, reason="Training session not found")
-            return
-            
-        pipeline = active_trainings[model_id]
+        # Attach WebSocket to training pipeline
+        training_job = active_trainings[model_id]
+        training_job['pipeline'].websocket = websocket
         
-        # Subscribe to training updates
-        async for update in pipeline.get_updates():
-            await websocket.send_json(update)
-            
+        # Keep connection alive
+        while True:
+            data = await websocket.receive_text()
+            if data == "stop":
+                training_job['pipeline']._should_stop = True
+                
     except Exception as e:
-        await websocket.close(code=4000, reason=str(e)) 
+        logger.error(f"WebSocket error: {str(e)}")
+    finally:
+        if model_id in active_trainings:
+            active_trainings[model_id]['pipeline'].websocket = None 
+
+@router.post("/models/{model_id}/evaluate")
+async def evaluate_model(
+    model_id: str,
+    evaluation_data: Dict[str, Any],
+    token: dict = Depends(verify_token)
+) -> Dict[str, Any]:
+    """Evaluate a model with provided data"""
+    if model_id not in active_trainings:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Model {model_id} not found"
+        )
+    
+    try:
+        job = active_trainings[model_id]
+        pipeline = job['pipeline']
+        
+        # Check if training is completed
+        if pipeline.status != "completed":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Model training is not completed. Current status: {pipeline.status}"
+            )
+        
+        evaluation_results = await pipeline.evaluate(evaluation_data)
+        
+        return {
+            "model_id": model_id,
+            "results": evaluation_results
+        }
+    except Exception as e:
+        logger.error(f"Model evaluation failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Evaluation failed: {str(e)}"
+        )
+
+@router.get("/models/{model_id}/metrics")
+async def get_model_metrics(
+    model_id: str,
+    token: dict = Depends(verify_token)
+) -> Dict[str, Any]:
+    """Get model training and monitoring metrics"""
+    if model_id not in active_trainings:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Model not found"
+        )
+    
+    try:
+        pipeline = active_trainings[model_id]['pipeline']
+        
+        # Get training metrics
+        training_metrics = pipeline.get_metrics()
+        
+        # Add resource usage metrics (simulated)
+        resource_metrics = {
+            'memory_usage': [random.uniform(20, 80) for _ in range(len(training_metrics))],
+            'cpu_usage': [random.uniform(10, 90) for _ in range(len(training_metrics))],
+            'timestamp': [time.time() - i * 60 for i in range(len(training_metrics))]
+        }
+        
+        # Add prediction metrics (simulated)
+        prediction_metrics = {
+            'predictions': [random.uniform(0, 1) for _ in range(len(training_metrics))]
+        }
+        
+        # Combine all metrics
+        metrics = []
+        for i in range(len(training_metrics)):
+            metric_point = {
+                **training_metrics[i],
+                'memory_usage': resource_metrics['memory_usage'][i],
+                'cpu_usage': resource_metrics['cpu_usage'][i],
+                'timestamp': resource_metrics['timestamp'][i],
+                'predictions': prediction_metrics['predictions'][i]
+            }
+            metrics.append(metric_point)
+        
+        return {
+            "model_id": model_id,
+            "metrics": metrics
+        }
+    except Exception as e:
+        logger.error(f"Failed to get model metrics: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get metrics: {str(e)}"
+        )

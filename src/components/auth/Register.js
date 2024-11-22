@@ -14,18 +14,73 @@ import {
 } from '@mui/material';
 
 const Register = () => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+    const [formData, setFormData] = useState({
+        username: '',
+        email: '',
+        password: '',
+        confirmPassword: ''
+    });
     const [error, setError] = useState('');
     const navigate = useNavigate();
     const dispatch = useDispatch();
+
+    const handleChange = (e) => {
+        setFormData({
+            ...formData,
+            [e.target.name]: e.target.value
+        });
+    };
+
+    const validateForm = () => {
+        if (!formData.username.trim()) {
+            setError('Username is required');
+            return false;
+        }
+        if (formData.username.length < 3) {
+            setError('Username must be at least 3 characters long');
+            return false;
+        }
+        if (!/^[a-zA-Z0-9_]+$/.test(formData.username)) {
+            setError('Username can only contain letters, numbers, and underscores');
+            return false;
+        }
+        if (!formData.email.trim()) {
+            setError('Email is required');
+            return false;
+        }
+        if (!/\S+@\S+\.\S+/.test(formData.email)) {
+            setError('Invalid email format');
+            return false;
+        }
+        if (!formData.password) {
+            setError('Password is required');
+            return false;
+        }
+        if (formData.password.length < 8) {
+            setError('Password must be at least 8 characters long');
+            return false;
+        }
+        if (formData.password !== formData.confirmPassword) {
+            setError('Passwords do not match');
+            return false;
+        }
+        return true;
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         
+        if (!validateForm()) {
+            return;
+        }
+
         try {
-            const response = await dispatch(register({ email, password })).unwrap();
+            const response = await dispatch(register({
+                username: formData.username,
+                email: formData.email,
+                password: formData.password
+            })).unwrap();
             if (response.id) {
                 navigate('/login');
             }
@@ -69,8 +124,8 @@ const Register = () => {
                             name="email"
                             autoComplete="email"
                             autoFocus
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
+                            value={formData.email}
+                            onChange={handleChange}
                         />
                         <TextField
                             margin="normal"
@@ -81,9 +136,32 @@ const Register = () => {
                             type="password"
                             id="password"
                             autoComplete="new-password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
+                            value={formData.password}
+                            onChange={handleChange}
                             helperText="Password must be at least 8 characters long"
+                        />
+                        <TextField
+                            margin="normal"
+                            required
+                            fullWidth
+                            name="confirmPassword"
+                            label="Confirm Password"
+                            type="password"
+                            id="confirmPassword"
+                            autoComplete="new-password"
+                            value={formData.confirmPassword}
+                            onChange={handleChange}
+                            helperText="Confirm password must be the same as the password"
+                        />
+                        <TextField
+                            margin="normal"
+                            required
+                            fullWidth
+                            name="username"
+                            label="Username"
+                            value={formData.username}
+                            onChange={handleChange}
+                            helperText="Username must be at least 3 characters long and can only contain letters, numbers, and underscores"
                         />
                         <Button
                             type="submit"

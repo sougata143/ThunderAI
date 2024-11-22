@@ -1,153 +1,99 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
-
-export const register = createAsyncThunk(
-    'auth/register',
-    async (credentials, { rejectWithValue }) => {
-        try {
-            const response = await fetch(`${API_URL}/register`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(credentials),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                return rejectWithValue(data.detail || 'Registration failed');
-            }
-
-            return data;
-        } catch (err) {
-            console.error('Registration error:', err);
-            return rejectWithValue('Network error occurred');
-        }
-    }
-);
+import axiosInstance from '../../services/axiosConfig';
 
 export const login = createAsyncThunk(
-    'auth/login',
-    async (credentials, { rejectWithValue }) => {
-        try {
-            const formData = new FormData();
-            formData.append('username', credentials.email);
-            formData.append('password', credentials.password);
+  'auth/login',
+  async ({ username, password }, { rejectWithValue }) => {
+    try {
+      const formData = new FormData();
+      formData.append('username', username);
+      formData.append('password', password);
 
-            const response = await fetch(`${API_URL}/token`, {
-                method: 'POST',
-                body: formData,
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                return rejectWithValue(data.detail || 'Login failed');
-            }
-
-            localStorage.setItem('token', data.access_token);
-            localStorage.setItem('user', JSON.stringify(data.user));
-
-            return data;
-        } catch (error) {
-            console.error('Login error:', error);
-            return rejectWithValue('Network error occurred');
+      const response = await axiosInstance.post('/token', formData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
         }
+      });
+      
+      const { access_token, ...userData } = response.data;
+      
+      // Store token and user data
+      localStorage.setItem('token', access_token);
+      localStorage.setItem('user', JSON.stringify(userData));
+      
+      // Set token for future requests
+      axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+      
+      return { token: access_token, user: userData };
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.detail || 'Login failed');
     }
+  }
 );
 
-export const loginAsGuest = createAsyncThunk(
-    'auth/loginAsGuest',
-    async (_, { rejectWithValue }) => {
-        try {
-            const response = await fetch(`${API_URL}/guest-token`, {
-                method: 'POST',
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                return rejectWithValue(data.detail || 'Guest login failed');
-            }
-
-            return {
-                ...data,
-                isGuest: true
-            };
-        } catch (error) {
-            return rejectWithValue('Guest login failed');
-        }
+export const register = createAsyncThunk(
+  'auth/register',
+  async ({ username, email, password }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post('/register', {
+        username,
+        email,
+        password
+      });
+      return response.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.detail || 'Registration failed');
     }
+  }
 );
 
 const authSlice = createSlice({
-    name: 'auth',
-    initialState: {
-        user: JSON.parse(localStorage.getItem('user')) || null,
-        token: localStorage.getItem('token') || null,
-        loading: false,
-        error: null,
-        isGuest: false
-    },
-    reducers: {
-        logout: (state) => {
-            state.user = null;
-            state.token = null;
-            state.isGuest = false;
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-        },
-        clearError: (state) => {
-            state.error = null;
-        },
-    },
-    extraReducers: (builder) => {
-        builder
-            .addCase(register.pending, (state) => {
-                state.loading = true;
-                state.error = null;
-            })
-            .addCase(register.fulfilled, (state, action) => {
-                state.loading = false;
-                state.error = null;
-            })
-            .addCase(register.rejected, (state, action) => {
-                state.loading = false;
-                state.error = action.payload;
-            })
-            .addCase(login.pending, (state) => {
-                state.loading = true;
-                state.error = null;
-            })
-            .addCase(login.fulfilled, (state, action) => {
-                state.loading = false;
-                state.user = action.payload.user;
-                state.token = action.payload.access_token;
-                state.error = null;
-            })
-            .addCase(login.rejected, (state, action) => {
-                state.loading = false;
-                state.error = action.payload;
-            })
-            .addCase(loginAsGuest.pending, (state) => {
-                state.loading = true;
-                state.error = null;
-            })
-            .addCase(loginAsGuest.fulfilled, (state, action) => {
-                state.loading = false;
-                state.user = action.payload.user;
-                state.token = action.payload.access_token;
-                state.isGuest = true;
-                state.error = null;
-            })
-            .addCase(loginAsGuest.rejected, (state, action) => {
-                state.loading = false;
-                state.error = action.payload;
-            });
-    },
+  name: 'auth',
+  initialState: {
+    user: JSON.parse(localStorage.getItem('user')),
+    token: localStorage.getItem('token'),
+    status: 'idle',
+    error: null
+  },
+  reducers: {
+    logout: (state) => {
+      state.user = null;
+      state.token = null;
+      state.status = 'idle';
+      state.error = null;
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      delete axiosInstance.defaults.headers.common['Authorization'];
+    }
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(login.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(login.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        state.token = action.payload.token;
+        state.user = action.payload.user;
+      })
+      .addCase(login.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload;
+      })
+      .addCase(register.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(register.fulfilled, (state) => {
+        state.status = 'succeeded';
+      })
+      .addCase(register.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload;
+      });
+  }
 });
 
-export const { logout, clearError } = authSlice.actions;
+export const { logout } = authSlice.actions;
 export default authSlice.reducer; 

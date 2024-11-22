@@ -1,27 +1,27 @@
+from typing import Any, Optional
+from redis import Redis
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
-from redis import asyncio as aioredis
-from typing import Any
+from fastapi_cache.decorator import cache
 
 class CacheManager:
-    def __init__(self, redis_url: str = "redis://localhost"):
-        self.redis_url = redis_url
-        self.redis = None
-
-    async def init_cache(self):
-        self.redis = aioredis.from_url(self.redis_url)
-        FastAPICache.init(RedisBackend(self.redis), prefix="thunderai-cache")
-
-    async def close(self):
-        if self.redis:
-            await self.redis.close()
-
-    @staticmethod
-    def cache_response(expire: int = 60):
-        return cache(expire=expire)
+    def __init__(self, redis_url: str = "redis://localhost:6379"):
+        self.redis_client = Redis.from_url(redis_url, encoding="utf8", decode_responses=True)
+        
+    def init_cache(self):
+        FastAPICache.init(
+            RedisBackend(self.redis_client),
+            prefix="thunderai-cache"
+        )
     
     async def get(self, key: str) -> Any:
-        return await FastAPICache.get(key)
+        return await self.redis_client.get(key)
     
-    async def set(self, key: str, value: Any, expire: int = 60):
-        await FastAPICache.set(key, value, expire=expire) 
+    async def set(self, key: str, value: Any, expire: Optional[int] = None):
+        await self.redis_client.set(key, value, ex=expire)
+    
+    async def delete(self, key: str):
+        await self.redis_client.delete(key)
+    
+    async def clear_all(self):
+        await self.redis_client.flushall() 

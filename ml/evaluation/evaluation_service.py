@@ -123,6 +123,15 @@ class ModelEvaluator:
                 )
         
         self.logger.info(f"Evaluation metrics for {self.model_name}: {metrics}")
+    
+    def generate_model_report(self, model_id: str, evaluation_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate comprehensive model report"""
+        return {
+            'model_info': self.get_model_info(model_id),
+            'evaluation_metrics': evaluation_results,
+            'performance_analysis': self.analyze_performance(evaluation_results),
+            'recommendations': self.generate_recommendations(evaluation_results)
+        }
 
 class ModelAnalyzer:
     """Analyzes model behavior and generates insights"""

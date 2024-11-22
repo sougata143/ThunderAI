@@ -4,7 +4,9 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from db.models import User
 from api.schemas.user import UserCreate
-import bcrypt
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_password_hash(password: str) -> str:
     """Hash a password using bcrypt"""
@@ -101,6 +103,40 @@ def create_user(db: Session, user: UserCreate):
     except Exception as e:
         db.rollback()
         raise e
+
+def get_user_by_username(db: Session, username: str) -> Optional[User]:
+    """Get user by username"""
+    return db.query(User).filter(User.username == username).first()
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify password hash"""
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password: str) -> str:
+    """Generate password hash"""
+    return pwd_context.hash(password)
+
+def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
+    """Authenticate user with username and password"""
+    user = get_user_by_username(db, username)
+    if not user:
+        return None
+    if not verify_password(password, user.hashed_password):
+        return None
+    return user
+
+def create_user(db: Session, user_data: UserCreate) -> User:
+    """Create new user"""
+    hashed_password = get_password_hash(user_data.password)
+    db_user = User(
+        username=user_data.username,
+        email=user_data.email,
+        hashed_password=hashed_password
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
 
 user = CRUDUser(models.User)
 prediction = CRUDPrediction(models.Prediction) 

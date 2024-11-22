@@ -1,157 +1,90 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from typing import List, Dict, Any
-from sqlalchemy.orm import Session
-from db.session import get_db
-from api.auth.jwt import verify_token
-import logging
-import uuid
+from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List, Dict, Any, Optional
+from pydantic import BaseModel
+from datetime import datetime
+from core.auth import get_current_user
+from core.model import UserInDB
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
 
-# Store active experiments with some initial sample data
-active_experiments: Dict[str, Dict[str, Any]] = {
-    str(uuid.uuid4()): {
-        "name": "BERT Classification",
-        "model_type": "bert",
-        "status": "completed",
-        "metrics": {
-            "loss": [0.8, 0.6, 0.4, 0.3, 0.2],
-            "accuracy": [0.6, 0.7, 0.8, 0.85, 0.9],
-            "epochs": [1, 2, 3, 4, 5]
-        },
-        "training_time": 15
-    },
-    str(uuid.uuid4()): {
-        "name": "GPT Text Generation",
-        "model_type": "gpt",
-        "status": "running",
-        "metrics": {
-            "loss": [0.9, 0.7, 0.5],
-            "accuracy": [0.5, 0.65, 0.75],
-            "epochs": [1, 2, 3]
-        },
-        "training_time": 10
-    },
-    str(uuid.uuid4()): {
-        "name": "LSTM Sequence Model",
-        "model_type": "lstm",
-        "status": "failed",
-        "metrics": {
-            "loss": [1.0, 0.8],
-            "accuracy": [0.4, 0.5],
-            "epochs": [1, 2]
-        },
-        "training_time": 5
-    }
-}
+class Experiment(BaseModel):
+    id: str
+    name: str
+    modelType: str
+    status: str
+    created_at: datetime
+    user_id: Optional[int] = None
 
 @router.get("/experiments")
 async def get_experiments(
-    token: dict = Depends(verify_token),
-    db: Session = Depends(get_db)
-):
-    """Get all experiments"""
+    current_user: Optional[UserInDB] = Depends(get_current_user)
+) -> List[Dict[str, Any]]:
+    """Get list of experiments"""
     try:
+        # For now, return mock data
         experiments = [
             {
-                "id": exp_id,
-                "name": exp["name"],
-                "modelType": exp["model_type"],
-                "status": exp["status"],
-                "metrics": exp["metrics"],
-                "trainingTime": exp["training_time"]
+                "id": "exp1",
+                "name": "BERT Fine-tuning",
+                "modelType": "bert",
+                "status": "completed",
+                "created_at": datetime.now(),
+                "user_id": current_user.id if current_user else None
+            },
+            {
+                "id": "exp2",
+                "name": "GPT Training",
+                "modelType": "gpt",
+                "status": "running",
+                "created_at": datetime.now(),
+                "user_id": current_user.id if current_user else None
             }
-            for exp_id, exp in active_experiments.items()
         ]
-        return {"data": experiments}
-    except Exception as e:
-        logger.error(f"Error fetching experiments: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/experiments/{experiment_id}/start")
-async def start_experiment(
-    experiment_id: str,
-    token: dict = Depends(verify_token)
-):
-    """Start an experiment"""
-    if experiment_id not in active_experiments:
-        raise HTTPException(status_code=404, detail="Experiment not found")
         
+        # If user is authenticated, filter experiments by user_id
+        if current_user:
+            experiments = [exp for exp in experiments if exp["user_id"] == current_user.id]
+            
+        return experiments
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch experiments: {str(e)}"
+        )
+
+@router.get("/experiments/{experiment_id}")
+async def get_experiment(
+    experiment_id: str,
+    current_user: Optional[UserInDB] = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """Get experiment details"""
     try:
-        experiment = active_experiments[experiment_id]
-        if experiment["status"] == "completed":
+        # Mock data for now
+        experiment = {
+            "id": experiment_id,
+            "name": "BERT Fine-tuning",
+            "modelType": "bert",
+            "status": "completed",
+            "created_at": datetime.now(),
+            "user_id": current_user.id if current_user else None,
+            "metrics": {
+                "accuracy": 0.95,
+                "loss": 0.05
+            }
+        }
+        
+        # Check if user has access to this experiment
+        if current_user and experiment["user_id"] != current_user.id:
             raise HTTPException(
-                status_code=400, 
-                detail="Cannot start a completed experiment"
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to access this experiment"
             )
             
-        experiment["status"] = "running"
-        return {"message": "Experiment started successfully"}
+        return experiment
+    except HTTPException as e:
+        raise e
     except Exception as e:
-        logger.error(f"Error starting experiment: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/experiments/{experiment_id}/stop")
-async def stop_experiment(
-    experiment_id: str,
-    token: dict = Depends(verify_token)
-):
-    """Stop an experiment"""
-    if experiment_id not in active_experiments:
-        raise HTTPException(status_code=404, detail="Experiment not found")
-        
-    try:
-        experiment = active_experiments[experiment_id]
-        if experiment["status"] != "running":
-            raise HTTPException(
-                status_code=400, 
-                detail="Experiment is not running"
-            )
-            
-        experiment["status"] = "stopped"
-        return {"message": "Experiment stopped successfully"}
-    except Exception as e:
-        logger.error(f"Error stopping experiment: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.delete("/experiments/{experiment_id}")
-async def delete_experiment(
-    experiment_id: str,
-    token: dict = Depends(verify_token)
-):
-    """Delete an experiment"""
-    if experiment_id not in active_experiments:
-        raise HTTPException(status_code=404, detail="Experiment not found")
-        
-    try:
-        experiment = active_experiments[experiment_id]
-        if experiment["status"] == "running":
-            raise HTTPException(
-                status_code=400, 
-                detail="Cannot delete a running experiment"
-            )
-            
-        del active_experiments[experiment_id]
-        return {"message": "Experiment deleted successfully"}
-    except Exception as e:
-        logger.error(f"Error deleting experiment: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/experiments/{experiment_id}/export")
-async def export_experiment_results(
-    experiment_id: str,
-    token: dict = Depends(verify_token)
-):
-    """Export experiment results"""
-    if experiment_id not in active_experiments:
-        raise HTTPException(status_code=404, detail="Experiment not found")
-        
-    try:
-        experiment = active_experiments[experiment_id]
-        # Here you would format the results for export
-        # For now, we'll just return the metrics
-        return experiment["metrics"]
-    except Exception as e:
-        logger.error(f"Error exporting experiment results: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch experiment: {str(e)}"
+        ) 

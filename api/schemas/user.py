@@ -1,26 +1,22 @@
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr
+from typing import Optional
+from datetime import datetime
 
 class UserBase(BaseModel):
-    email: EmailStr = Field(..., description="User's email address")
+    username: str
+    email: EmailStr
+    full_name: Optional[str] = None
 
 class UserCreate(UserBase):
-    password: str = Field(
-        ..., 
-        min_length=8,
-        description="User's password (min 8 characters)"
-    )
+    password: str
 
 class User(UserBase):
-    model_config = ConfigDict(
-        from_attributes=True,
-        json_schema_extra={
-            "example": {
-                "id": 1,
-                "email": "user@example.com",
-                "is_active": True
-            }
-        }
-    )
-    
     id: int
-    is_active: bool = True 
+    is_active: bool = True
+    created_at: Optional[datetime] = None
+    organization: Optional[str] = None
+    job_title: Optional[str] = None
+    settings: Optional[dict] = None
+    
+    class Config:
+        from_attributes = True
