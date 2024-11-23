@@ -5,7 +5,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Sidebar } from './Sidebar';
 
-export const Layout: React.FC = () => {
+const Layout: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
@@ -72,3 +72,6 @@ export const Layout: React.FC = () => {
     </Box>
   );
 };
+
+export { Layout, Sidebar };
+export default Layout;

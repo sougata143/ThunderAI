@@ -3,11 +3,10 @@ from typing import Any, Union, Optional
 from jose import jwt
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer
-from .config import get_settings
+from .config import settings
 
-settings = get_settings()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=settings.TOKEN_URL)
 
 def create_access_token(
     subject: Union[str, Any],
@@ -19,9 +18,12 @@ def create_access_token(
     else:
         expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    to_encode = {"exp": expire, "sub": str(subject)}
-    if scopes:
-        to_encode["scopes"] = scopes
+    to_encode = {
+        "exp": int(expire.timestamp()),  # Convert to int timestamp
+        "sub": str(subject),
+        "type": "access",
+        "scopes": scopes or []
+    }
     
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt

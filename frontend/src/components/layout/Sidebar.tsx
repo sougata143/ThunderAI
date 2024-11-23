@@ -9,6 +9,7 @@ import {
   ListItemButton,
   Divider,
   Typography,
+  Toolbar,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -16,19 +17,23 @@ import {
   Settings as SettingsIcon,
   Person as PersonIcon,
   Science as ExperimentsIcon,
+  Logout as LogoutIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 const drawerWidth = 240;
 
 interface SidebarProps {
   open: boolean;
   onClose: () => void;
+  variant: "permanent" | "temporary";
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ open, onClose, variant }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { logout } = useAuth();
 
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
@@ -40,18 +45,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
 
   const handleNavigation = (path: string) => {
     navigate(path);
-    if (onClose) {
+    if (variant === "temporary") {
+      onClose();
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+    if (variant === "temporary") {
       onClose();
     }
   };
 
   const drawer = (
-    <Box>
-      <Box sx={{ p: 2 }}>
+    <>
+      <Toolbar>
         <Typography variant="h6" noWrap component="div">
           ThunderAI
         </Typography>
-      </Box>
+      </Toolbar>
       <Divider />
       <List>
         {menuItems.map((item) => (
@@ -65,48 +78,54 @@ export const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
             </ListItemButton>
           </ListItem>
         ))}
+        <Divider sx={{ my: 1 }} />
+        <ListItem disablePadding>
+          <ListItemButton onClick={handleLogout}>
+            <ListItemIcon>
+              <LogoutIcon />
+            </ListItemIcon>
+            <ListItemText primary="Logout" />
+          </ListItemButton>
+        </ListItem>
       </List>
-    </Box>
+    </>
   );
 
-  return (
-    <Box
-      component="nav"
-      sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
-    >
-      {/* Mobile drawer */}
-      <Drawer
-        variant="temporary"
-        open={open}
-        onClose={onClose}
-        ModalProps={{
-          keepMounted: true, // Better open performance on mobile
-        }}
-        sx={{
-          display: { xs: 'block', sm: 'none' },
-          '& .MuiDrawer-paper': {
-            boxSizing: 'border-box',
-            width: drawerWidth,
-          },
-        }}
-      >
-        {drawer}
-      </Drawer>
-      
-      {/* Desktop drawer */}
+  if (variant === "permanent") {
+    return (
       <Drawer
         variant="permanent"
         sx={{
-          display: { xs: 'none', sm: 'block' },
+          width: drawerWidth,
+          flexShrink: 0,
           '& .MuiDrawer-paper': {
-            boxSizing: 'border-box',
             width: drawerWidth,
+            boxSizing: 'border-box',
           },
         }}
-        open
       >
         {drawer}
       </Drawer>
-    </Box>
+    );
+  }
+
+  return (
+    <Drawer
+      variant="temporary"
+      open={open}
+      onClose={onClose}
+      ModalProps={{
+        keepMounted: true, // Better open performance on mobile
+      }}
+      sx={{
+        display: { xs: 'block', sm: 'none' },
+        '& .MuiDrawer-paper': {
+          width: drawerWidth,
+          boxSizing: 'border-box',
+        },
+      }}
+    >
+      {drawer}
+    </Drawer>
   );
 };

@@ -1,76 +1,67 @@
-from datetime import timedelta
-from typing import Optional, Tuple
+from datetime import datetime, timedelta
+from typing import Optional
+from jose import jwt
 from fastapi import HTTPException, status
-from motor.motor_asyncio import AsyncIOMotorDatabase
 from bson import ObjectId
 
-from ..core.security import verify_password, create_access_token, get_password_hash
-from ..core.config import get_settings
-from ..models.user import UserCreate, UserInDB
-from ..schemas.user import Token, User
+from ..core.security import verify_password, get_password_hash
+from ..core.config import settings
+from ..db.mongodb import db
+from ..schemas.user import User, UserCreate
 
-settings = get_settings()
-
-async def authenticate_user(db: AsyncIOMotorDatabase, email: str, password: str) -> Optional[UserInDB]:
-    user_dict = await db["users"].find_one({"email": email})
-    if not user_dict:
+async def authenticate_user(email: str, password: str) -> Optional[User]:
+    """
+    Authenticate a user by email and password
+    """
+    database = db.get_db()
+    user = await database["users"].find_one({"email": email})
+    if not user:
         return None
-    user = UserInDB(**user_dict)
-    if not verify_password(password, user.hashed_password):
+    if not verify_password(password, user["hashed_password"]):
         return None
-    return user
+    return User(**user)
 
-async def get_user_by_email(db: AsyncIOMotorDatabase, email: str) -> Optional[UserInDB]:
-    user_dict = await db["users"].find_one({"email": email})
-    if user_dict:
-        return UserInDB(**user_dict)
-    return None
+async def create_access_token(user_id: str) -> str:
+    """
+    Create access token for user
+    """
+    expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode = {
+        "exp": expire,
+        "sub": str(user_id),
+        "type": "access"
+    }
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return encoded_jwt
 
-async def create_user(db: AsyncIOMotorDatabase, user_in: UserCreate) -> UserInDB:
+async def create_user(user_data: UserCreate) -> User:
+    """
+    Create a new user
+    """
+    database = db.get_db()
+    
     # Check if user exists
-    existing_user = await get_user_by_email(db, user_in.email)
-    if existing_user:
+    if await database["users"].find_one({"email": user_data.email}):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
     
-    # Create new user
-    user_dict = user_in.dict(exclude={"password"})
-    user_dict["hashed_password"] = get_password_hash(user_in.password)
+    # Create user
+    user_dict = user_data.dict()
+    user_dict["hashed_password"] = get_password_hash(user_data.password)
+    user_dict.pop("password")
+    user_dict["_id"] = str(ObjectId())
+    user_dict["created_at"] = datetime.utcnow()
+    user_dict["is_active"] = True
     
-    result = await db["users"].insert_one(user_dict)
-    user_dict["_id"] = result.inserted_id
-    
-    return UserInDB(**user_dict)
+    await database["users"].insert_one(user_dict)
+    return User(**user_dict)
 
-def create_token_for_user(user: UserInDB) -> Token:
-    scopes = ["admin"] if user.is_superuser else ["user"]
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        subject=user.user_id,
-        expires_delta=access_token_expires,
-        scopes=scopes
-    )
-    
-    return Token(
-        access_token=access_token,
-        token_type="bearer",
-        user=User(
-            id=user.user_id,
-            email=user.email,
-            username=user.username,
-            full_name=user.full_name,
-            is_active=user.is_active,
-            is_superuser=user.is_superuser,
-            created_at=user.created_at,
-            updated_at=user.updated_at
-        )
-    )
-
-async def init_first_admin(db: AsyncIOMotorDatabase):
+async def init_first_admin():
     # Check if admin exists
-    admin = await get_user_by_email(db, settings.FIRST_ADMIN_EMAIL)
+    database = db.get_db()
+    admin = await database["users"].find_one({"email": settings.FIRST_ADMIN_EMAIL})
     if not admin:
         admin_user = UserCreate(
             email=settings.FIRST_ADMIN_EMAIL,
@@ -79,4 +70,4 @@ async def init_first_admin(db: AsyncIOMotorDatabase):
             username="admin",
             is_superuser=True
         )
-        await create_user(db, admin_user)
+        await create_user(admin_user)

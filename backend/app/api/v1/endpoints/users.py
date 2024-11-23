@@ -1,47 +1,24 @@
 from fastapi import APIRouter, HTTPException, Depends
-from typing import Dict, List
-from pydantic import BaseModel, EmailStr, constr
+from typing import Dict, List, Any
+from pydantic import EmailStr, constr
 from datetime import datetime
 from passlib.context import CryptContext
+from fastapi.security import OAuth2PasswordBearer
+from ....core.security import decode_token
+from ....services.user_service import UserService
+from ....schemas.user import User, UserCreate, UserBase, UserUpdate
+from ....core.config import settings
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-class UserBase(BaseModel):
-    email: EmailStr
-    full_name: str
-    role: str = "user"  # "admin" or "user"
-
-class UserCreate(UserBase):
-    password: constr(min_length=8)
-
-class User(UserBase):
-    id: int
-    created_at: datetime
-    updated_at: datetime
-    is_active: bool = True
-
-    class Config:
-        from_attributes = True
 
 router = APIRouter(
     tags=["Users"],
     responses={404: {"description": "Not found"}}
 )
 
-# Mock data store
-USERS = {
-    1: {
-        "id": 1,
-        "email": "admin@thunderai.com",
-        "full_name": "Admin User",
-        "role": "admin",
-        "hashed_password": pwd_context.hash("admin123"),
-        "created_at": datetime.now(),
-        "updated_at": datetime.now(),
-        "is_active": True
-    }
-}
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=settings.TOKEN_URL)
+user_service = UserService()
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
@@ -52,69 +29,93 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 @router.get("/", response_model=List[User])
 async def list_users() -> List[User]:
     """List all users."""
-    return list(USERS.values())
+    raise HTTPException(status_code=501, detail="Not implemented")
+
+@router.get("/me", response_model=User)
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
+    """
+    Get current user
+    """
+    try:
+        payload = decode_token(token)
+        if not payload:
+            raise HTTPException(
+                status_code=401,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        user = await user_service.get(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return user
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=401,
+            detail=f"Could not validate credentials: {str(e)}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 @router.get("/{user_id}", response_model=User)
-async def get_user(user_id: int) -> User:
-    """Get user details by ID."""
-    if user_id not in USERS:
-        raise HTTPException(status_code=404, detail="User not found")
-    return USERS[user_id]
+async def get_user(user_id: str) -> User:
+    """
+    Get user by ID
+    """
+    try:
+        user = await user_service.get(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get user: {str(e)}"
+        )
 
 @router.post("/", response_model=User)
-async def create_user(user: UserCreate) -> User:
+async def create_user(user_in: UserCreate) -> User:
     """Create a new user."""
-    # Check if email already exists
-    if any(u["email"] == user.email for u in USERS.values()):
+    try:
+        user = await user_service.create(user_in)
+        return user
+    except HTTPException as he:
+        raise he
+    except Exception as e:
         raise HTTPException(
-            status_code=400,
-            detail="Email already registered"
+            status_code=500,
+            detail=f"Failed to create user: {str(e)}"
         )
-    
-    new_id = max(USERS.keys()) + 1 if USERS else 1
-    current_time = datetime.now()
-    
-    new_user = {
-        "id": new_id,
-        **user.model_dump(exclude={"password"}),
-        "hashed_password": get_password_hash(user.password),
-        "created_at": current_time,
-        "updated_at": current_time,
-        "is_active": True
-    }
-    
-    USERS[new_id] = new_user
-    return new_user
 
 @router.put("/{user_id}", response_model=User)
-async def update_user(user_id: int, user_update: UserBase) -> User:
+async def update_user(user_id: str, user_update: UserUpdate) -> User:
     """Update user details."""
-    if user_id not in USERS:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Check if email already exists for other users
-    if any(u["email"] == user_update.email and u["id"] != user_id for u in USERS.values()):
+    try:
+        user = await user_service.update(user_id, user_update)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
+    except HTTPException as he:
+        raise he
+    except Exception as e:
         raise HTTPException(
-            status_code=400,
-            detail="Email already registered"
+            status_code=500,
+            detail=f"Failed to update user: {str(e)}"
         )
-    
-    user_data = USERS[user_id]
-    update_data = user_update.model_dump()
-    
-    user_data.update({
-        **update_data,
-        "updated_at": datetime.now()
-    })
-    
-    USERS[user_id] = user_data
-    return user_data
 
 @router.delete("/{user_id}")
-async def delete_user(user_id: int):
+async def delete_user(user_id: str) -> Dict[str, Any]:
     """Delete a user."""
-    if user_id not in USERS:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    del USERS[user_id]
-    return {"message": "User deleted successfully"}
+    raise HTTPException(status_code=501, detail="Not implemented")

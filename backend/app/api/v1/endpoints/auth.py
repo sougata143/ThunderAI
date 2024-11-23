@@ -1,75 +1,77 @@
+from datetime import timedelta
+from typing import Any
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from motor.motor_asyncio import AsyncIOMotorDatabase
-from typing import Any
 
-from ....core.config import get_settings
-from ....db.deps import get_db
-from ....models.user import UserCreate
-from ....schemas.user import User, Token
-from ....services import auth_service
+from ....core.config import settings
+from ....core.security import create_access_token
+from ....schemas.token import Token
+from ....schemas.user import User, UserCreate
+from ....services.user_service import UserService
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
-settings = get_settings()
-
-@router.post("/register", response_model=User)
-async def register(
-    user_in: UserCreate,
-    db: AsyncIOMotorDatabase = Depends(get_db)
-) -> Any:
-    """
-    Register a new user.
-    """
-    try:
-        user = await auth_service.create_user(db, user_in)
-        return User(
-            id=user.user_id,
-            email=user.email,
-            username=user.username,
-            full_name=user.full_name,
-            is_active=user.is_active,
-            is_superuser=user.is_superuser,
-            created_at=user.created_at,
-            updated_at=user.updated_at
-        )
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+user_service = UserService()
 
 @router.post("/login", response_model=Token)
 async def login(
-    db: AsyncIOMotorDatabase = Depends(get_db),
     form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Any:
     """
-    OAuth2 compatible token login.
+    OAuth2 compatible token login, get an access token for future requests
     """
     try:
-        user = await auth_service.authenticate_user(
-            db, email=form_data.username, password=form_data.password
+        logger.info(f"Login attempt for user: {form_data.username}")
+        user = await user_service.authenticate(
+            email=form_data.username,  # OAuth2 uses username field for email
+            password=form_data.password
         )
         if not user:
+            logger.warning(f"Authentication failed for user: {form_data.username}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect email or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         elif not user.is_active:
+            logger.warning(f"Inactive user attempt to login: {form_data.username}")
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Inactive user",
-                headers={"WWW-Authenticate": "Bearer"},
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Inactive user"
             )
-            
-        return auth_service.create_token_for_user(user)
-    except HTTPException as e:
-        raise e
+
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            subject=str(user.id),
+            expires_delta=access_token_expires
+        )
+        
+        logger.info(f"Login successful for user: {form_data.username}, token: {access_token[:20]}...")
+        return {"access_token": access_token, "token_type": "Bearer"}
+    except HTTPException as he:
+        raise he
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail=f"Login failed: {str(e)}"
+        )
+
+@router.post("/signup", response_model=User)
+async def create_user(user_in: UserCreate) -> Any:
+    """
+    Create new user
+    """
+    try:
+        user = await user_service.create(user_in)
+        return user
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"User creation failed: {str(e)}"
         )

@@ -24,49 +24,34 @@ import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Model {
-  id: string;
+  _id: string;
   name: string;
-  description: string;
-  architecture: string;
-  status: string;
+  description?: string;
+  model_type: string;
+  version: string;
+  parameters?: Record<string, any>;
+  metadata?: Record<string, any>;
   created_at: string;
-  metrics?: {
-    perplexity: number;
-    bleu_score?: number;
-    accuracy?: number;
-    loss: number;
-  };
+  updated_at?: string;
+  is_active: boolean;
 }
 
 interface ModelCardProps {
   model: Model;
-  onDelete: () => void;
+  onDelete: (id: string) => void;
 }
 
 export const ModelCard: React.FC<ModelCardProps> = ({ model, onDelete }) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const navigate = useNavigate();
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'training':
-        return 'warning';
-      case 'ready':
-        return 'success';
-      case 'error':
-        return 'error';
-      default:
-        return 'default';
-    }
-  };
-
-  const formatMetric = (value: number) => {
-    return value.toFixed(4);
+  const getStatusColor = (isActive: boolean) => {
+    return isActive ? 'success' : 'error';
   };
 
   const handleDelete = () => {
     setDeleteDialogOpen(false);
-    onDelete();
+    onDelete(model._id);
   };
 
   return (
@@ -79,8 +64,8 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model, onDelete }) => {
                 {model.name}
               </Typography>
               <Chip
-                label={model.status}
-                color={getStatusColor(model.status)}
+                label={model.is_active ? 'Active' : 'Inactive'}
+                color={getStatusColor(model.is_active)}
                 size="small"
                 sx={{ mb: 1 }}
               />
@@ -89,7 +74,7 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model, onDelete }) => {
               <Tooltip title="Generate Text">
                 <IconButton
                   size="small"
-                  onClick={() => navigate(`/llm/generate/${model.id}`)}
+                  onClick={() => navigate(`/llm/generate/${model._id}`)}
                   sx={{ mr: 1 }}
                 >
                   <PlayIcon />
@@ -98,7 +83,7 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model, onDelete }) => {
               <Tooltip title="View Metrics">
                 <IconButton
                   size="small"
-                  onClick={() => navigate(`/llm/metrics/${model.id}`)}
+                  onClick={() => navigate(`/llm/metrics/${model._id}`)}
                   sx={{ mr: 1 }}
                 >
                   <AssessmentIcon />
@@ -115,40 +100,31 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model, onDelete }) => {
           </Box>
 
           <Typography variant="body2" color="text.secondary" paragraph>
-            {model.description}
+            {model.description || 'No description available'}
           </Typography>
 
           <Typography variant="body2" color="text.secondary" gutterBottom>
-            Architecture: {model.architecture}
+            Type: {model.model_type}
+          </Typography>
+          
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            Version: {model.version}
           </Typography>
 
-          {model.metrics && (
+          {model.metadata && Object.keys(model.metadata).length > 0 && (
             <Box mt={2}>
               <Typography variant="subtitle2" gutterBottom>
-                Metrics
+                Metadata
               </Typography>
               <Grid container spacing={1}>
-                {Object.entries(model.metrics).map(([key, value]) => (
+                {Object.entries(model.metadata).map(([key, value]) => (
                   <Grid item xs={6} key={key}>
                     <Typography variant="caption" color="textSecondary">
                       {key.replace('_', ' ').toUpperCase()}
                     </Typography>
                     <Typography variant="body2">
-                      {typeof value === 'number' ? formatMetric(value) : value}
+                      {typeof value === 'number' ? value.toFixed(4) : String(value)}
                     </Typography>
-                    {key === 'perplexity' && (
-                      <LinearProgress
-                        variant="determinate"
-                        value={Math.min((1 / value) * 100, 100)}
-                      />
-                    )}
-                    {key === 'accuracy' && (
-                      <LinearProgress
-                        variant="determinate"
-                        value={value * 100}
-                        color="success"
-                      />
-                    )}
                   </Grid>
                 ))}
               </Grid>
@@ -157,6 +133,7 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model, onDelete }) => {
 
           <Typography variant="caption" color="textSecondary" sx={{ mt: 2, display: 'block' }}>
             Created {formatDistanceToNow(new Date(model.created_at))} ago
+            {model.updated_at && ` • Updated ${formatDistanceToNow(new Date(model.updated_at))} ago`}
           </Typography>
         </CardContent>
       </Card>
