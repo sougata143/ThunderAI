@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <img src="{{ url_for('static', filename='default_profile.png') }}" class="rounded-circle mb-3" style="width: 150px; height: 150px;" alt="Profile Picture" id="profilePicture">
+                    <h3 class="card-title" id="username">{{ current_user.username }}</h3>
+                    <p class="text-muted" id="email">{{ current_user.email }}</p>
+                    <button class="btn btn-primary" id="editProfileBtn">Edit Profile</button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h4>My Projects</h4>
+                    <div class="list-group" id="projectsList">
+                        {% for project in projects %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-1">{{ project.name }}</h5>
+                                    <p class="mb-1 text-muted">{{ project.description }}</p>
+                                </div>
+                                <div>
+                                    <a href="{{ url_for('view_project', project_id=project.id) }}" class="btn btn-sm btn-info">View</a>
+                                    <button class="btn btn-sm btn-danger delete-project" data-project-id="{{ project.id }}">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Profile Modal -->
+<div class="modal fade" id="editProfileModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Profile</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editProfileForm">
+                    <div class="mb-3">
+                        <label for="editUsername" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="editUsername" value="{{ current_user.username }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editEmail" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="editEmail" value="{{ current_user.email }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editProfilePicture" class="form-label">Profile Picture</label>
+                        <input type="file" class="form-control" id="editProfilePicture" accept="image/*">
+                    </div>
+                    <div class="mb-3">
+                        <label for="currentPassword" class="form-label">Current Password</label>
+                        <input type="password" class="form-control" id="currentPassword">
+                    </div>
+                    <div class="mb-3">
+                        <label for="newPassword" class="form-label">New Password (optional)</label>
+                        <input type="password" class="form-control" id="newPassword">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveProfileBtn">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/profile.js') }}"></script>
+{% endblock %}

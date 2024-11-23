@@ -1,144 +1,189 @@
-# ThunderAI - Advanced Machine Learning Platform
+# ThunderAI - Advanced Language Model Management Platform
 
-ThunderAI is a comprehensive machine learning platform that provides an intuitive interface for training, managing, and deploying machine learning models. It supports multiple model architectures including BERT, GPT, LSTM, and custom transformers.
+ThunderAI is a modern platform for managing and deploying large language models (LLMs). It provides an intuitive interface for creating, monitoring, and utilizing various language models, with support for popular architectures like GPT-2, BERT, T5, and LLaMA.
 
 ## Features
 
-### 1. Model Training
+### 1. Language Model Management
 - Support for multiple model architectures:
-  - BERT for classification and sequence tasks
-  - GPT for text generation
-  - LSTM for sequence modeling
-  - Custom transformers
-- Real-time training monitoring
-- Advanced hyperparameter configuration
-- Training metrics visualization
-- Automatic model checkpointing
+  - GPT-3.5/4 integration via OpenAI API
+  - Custom model support
+  - Extensible architecture for new models
+- Robust model lifecycle management:
+  - Create, read, update, delete operations
+  - Model versioning and tracking
+  - Automatic error handling and validation
+- Secure authentication and authorization
+  - JWT-based authentication
+  - Bearer token support
+  - Role-based access control
 
-### 2. Experiment Management
-- Track multiple experiments
-- Compare model performances
-- Export experiment results
-- Detailed metrics and visualizations
-- Experiment versioning
+### 2. Model Creation and Configuration
+- Intuitive model configuration:
+  - Model type selection
+  - Parameter customization
+  - API key management
+- Advanced error handling:
+  - Detailed error messages
+  - Validation feedback
+  - Automatic error recovery
+- Real-time status updates
 
-### 3. Model Monitoring
-- Real-time performance metrics
-- Resource utilization tracking
-- Custom metric definitions
-- Alert configuration
-- Performance dashboards
+### 3. Text Generation
+- Interactive text generation interface
+- Customizable generation parameters:
+  - Maximum tokens control
+  - Temperature adjustment
+  - Top-p sampling
+  - Frequency and presence penalties
+- Real-time generation preview
+- Generation history tracking
 
-### 4. User Management
-- Secure authentication
-- Role-based access control
-- Guest access with limited functionality
-- Profile management
+### 4. Security and Performance
+- Comprehensive authentication:
+  - Secure token management
+  - Automatic token refresh
+  - Session handling
+- Error handling and logging:
+  - Detailed error tracking
+  - Request/response logging
+  - Performance monitoring
+
+## Technology Stack
+
+### Backend
+- FastAPI for high-performance API
+- MongoDB for flexible data storage
+- Motor for async MongoDB operations
+- OpenAI API integration
+- JWT for authentication
+
+### Frontend
+- React 18 with Vite
+- Material-UI for modern UI
+- Axios for API communication
+- Context API for state management
+- JWT for secure authentication
+
+## Project Structure
+
+```
+ThunderAI/
+├── backend/
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── deps.py     # Dependency injection
+│   │   │   └── v1/         # API endpoints
+│   │   ├── core/           # Core configuration
+│   │   ├── schemas/        # Pydantic models
+│   │   ├── services/       # Business logic
+│   │   └── main.py        # FastAPI application
+│   └── requirements.txt   # Python dependencies
+│
+├── frontend/
+│   ├── src/
+│   │   ├── components/    # React components
+│   │   ├── contexts/      # Auth context
+│   │   ├── services/      # API services
+│   │   └── App.jsx       # Main application
+│   ├── package.json      # Frontend dependencies
+│   └── vite.config.js    # Vite configuration
+│
+└── README.md            # Project documentation
+```
 
 ## Getting Started
 
 ### Prerequisites
-- Python 3.10 or higher
-- Node.js 14 or higher
-- PostgreSQL database
-- Redis (for caching)
+- Python 3.11 or higher
+- Node.js 16 or higher
+- MongoDB 5.0 or higher
+- OpenAI API key
 
 ### Installation
 
 1. Clone the repository:
+```bash
 git clone https://github.com/yourusername/thunderai.git
 cd thunderai
+```
 
 2. Set up the backend:
 ```bash
-# Create and activate virtual environment
-python -m venv thunderai-env
-source thunderai-env/bin/activate  # On Windows: thunderai-env\Scripts\activate
-
-# Install dependencies
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-# Initialize database
-./scripts/init_db.sh
 ```
 
-3. Set up the frontend:
+3. Configure environment variables:
 ```bash
-# Install dependencies
+# backend/.env
+MONGODB_URL=mongodb://localhost:27017
+MONGODB_DB_NAME=thunderai
+SECRET_KEY=your_secret_key
+OPENAI_API_KEY=your_openai_api_key
+```
+
+4. Set up the frontend:
+```bash
+cd frontend
 npm install
-
-# Start development server
-npm start
 ```
 
-### Configuration
-
-1. Create a `.env` file in the root directory:
-```env
-DATABASE_URL=postgresql://user:password@localhost:5432/thunderai
-SECRET_KEY=your-secret-key
-REDIS_URL=redis://localhost
+5. Configure frontend environment:
+```bash
+# frontend/.env
+VITE_API_BASE_URL=http://localhost:8001/api/v1
 ```
 
-2. Configure model paths and other settings in `core/config.py`
+### Running the Application
 
-## Usage Guide
+1. Start MongoDB:
+```bash
+mongod
+```
 
-### 1. Training Models
+2. Start the backend server:
+```bash
+cd backend
+uvicorn app.main:app --reload --port 8001
+```
 
-#### Starting a New Training
-1. Navigate to the Dashboard
-2. Select model type (BERT, GPT, LSTM, Transformer)
-3. Configure training parameters:
-   - Learning rate
-   - Batch size
-   - Number of epochs
-   - Validation split
-4. Click "Start Training"
+3. Start the frontend development server:
+```bash
+cd frontend
+npm run dev
+```
 
-#### Monitoring Training
-- View real-time metrics
-- Monitor loss and accuracy curves
-- Check resource utilization
-- Stop training if needed
+The application will be available at:
+- Frontend: http://localhost:3030
+- Backend API: http://localhost:8001
+- API Documentation: http://localhost:8001/docs
 
-### 2. Managing Experiments
+## Security Considerations
 
-#### Viewing Experiments
-1. Navigate to Experiments page
-2. View list of all experiments
-3. Check status, metrics, and results
-4. Compare different experiments
+- All API endpoints are protected with JWT authentication
+- Tokens are automatically refreshed
+- API keys are securely stored
+- CORS is properly configured
+- Input validation on both frontend and backend
 
-#### Experiment Actions
-- Start/Stop experiments
-- Export results
-- Delete experiments
-- View detailed metrics
+## Error Handling
 
-### 3. Model Evaluation
-
-#### Performance Analysis
-- View accuracy
+- Comprehensive error messages
+- Automatic error recovery
+- Detailed logging
+- User-friendly error displays
 
 ## Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Support
-
-For support, email support@thunderai.com or join our Slack channel.
-
-## Acknowledgments
-
-- Thanks to all contributors
-- Built with FastAPI, React, and PyTorch
-- Monitoring stack powered by Prometheus and Grafana
+This project is licensed under the MIT License - see the LICENSE file for details.

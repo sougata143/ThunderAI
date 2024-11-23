@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome to ThunderAI{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2 text-center">
+            <h1 class="display-4">Welcome to ThunderAI</h1>
+            <p class="lead">A powerful platform for building and managing AI models.</p>
+            {% if not current_user.is_authenticated %}
+            <div class="mt-4">
+                <a href="{{ url_for('login_page') }}" class="btn btn-primary btn-lg me-3">Login</a>
+                <a href="{{ url_for('register_page') }}" class="btn btn-outline-primary btn-lg">Register</a>
+            </div>
+            {% else %}
+            <div class="mt-4">
+                <a href="{{ url_for('profile_page') }}" class="btn btn-primary btn-lg">Go to Profile</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="row mt-5">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Easy to Use</h5>
+                    <p class="card-text">Build and deploy AI models with just a few clicks. No complex setup required.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Powerful Features</h5>
+                    <p class="card-text">Access state-of-the-art AI models and customize them for your needs.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Secure & Reliable</h5>
+                    <p class="card-text">Your data and models are protected with enterprise-grade security.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
