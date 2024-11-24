@@ -74,7 +74,7 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model, onDelete }) => {
               <Tooltip title="Generate Text">
                 <IconButton
                   size="small"
-                  onClick={() => navigate(`/llm/generate/${model._id}`)}
+                  onClick={() => navigate(`/app/llm/generate/${model._id}`)}
                   sx={{ mr: 1 }}
                 >
                   <PlayIcon />
@@ -83,7 +83,7 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model, onDelete }) => {
               <Tooltip title="View Metrics">
                 <IconButton
                   size="small"
-                  onClick={() => navigate(`/llm/metrics/${model._id}`)}
+                  onClick={() => navigate(`/app/llm/metrics/${model._id}`)}
                   sx={{ mr: 1 }}
                 >
                   <AssessmentIcon />

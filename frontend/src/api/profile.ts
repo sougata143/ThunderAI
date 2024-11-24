@@ -1,4 +1,5 @@
-import axios from 'axios';
+import { instance as axios } from './axios';
+import { API_ENDPOINTS } from '../config';
 
 export interface UserProfile {
   id: string;
@@ -29,12 +30,10 @@ export interface UserProfile {
   }>;
 }
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-
 export const profileApi = {
   getProfile: async (): Promise<UserProfile> => {
     try {
-      const response = await axios.get(`${API_URL}/api/v1/profile`);
+      const response = await axios.get(API_ENDPOINTS.profile.get);
       return response.data;
     } catch (error) {
       console.error('Failed to fetch profile:', error);
@@ -44,7 +43,7 @@ export const profileApi = {
 
   updateProfile: async (profile: Partial<UserProfile>): Promise<UserProfile> => {
     try {
-      const response = await axios.put(`${API_URL}/api/v1/profile`, profile);
+      const response = await axios.put(API_ENDPOINTS.profile.update, profile);
       return response.data;
     } catch (error) {
       console.error('Failed to update profile:', error);
@@ -54,7 +53,7 @@ export const profileApi = {
 
   changePassword: async (data: { currentPassword: string; newPassword: string }): Promise<void> => {
     try {
-      await axios.post(`${API_URL}/api/v1/profile/change-password`, data);
+      await axios.post(API_ENDPOINTS.profile.changePassword, data);
     } catch (error) {
       console.error('Failed to change password:', error);
       throw error;
@@ -63,7 +62,7 @@ export const profileApi = {
 
   generateApiKey: async (name: string): Promise<{ key: string; id: string }> => {
     try {
-      const response = await axios.post(`${API_URL}/api/v1/profile/api-keys`, { name });
+      const response = await axios.post(API_ENDPOINTS.profile.apiKeys, { name });
       return response.data;
     } catch (error) {
       console.error('Failed to generate API key:', error);
@@ -73,7 +72,7 @@ export const profileApi = {
 
   deleteApiKey: async (keyId: string): Promise<void> => {
     try {
-      await axios.delete(`${API_URL}/api/v1/profile/api-keys/${keyId}`);
+      await axios.delete(`${API_ENDPOINTS.profile.apiKeys}/${keyId}`);
     } catch (error) {
       console.error('Failed to delete API key:', error);
       throw error;
@@ -83,8 +82,9 @@ export const profileApi = {
   uploadAvatar: async (file: File): Promise<{ url: string }> => {
     try {
       const formData = new FormData();
-      formData.append('avatar', file);
-      const response = await axios.post(`${API_URL}/api/v1/profile/avatar`, formData, {
+      formData.append('file', file);
+
+      const response = await axios.post(`${API_ENDPOINTS.profile.update}/avatar`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -98,7 +98,7 @@ export const profileApi = {
 
   enable2FA: async (): Promise<{ qrCode: string; secret: string }> => {
     try {
-      const response = await axios.post(`${API_URL}/api/v1/profile/2fa/enable`);
+      const response = await axios.post(`${API_ENDPOINTS.profile.update}/2fa/enable`);
       return response.data;
     } catch (error) {
       console.error('Failed to enable 2FA:', error);
@@ -108,7 +108,7 @@ export const profileApi = {
 
   verify2FA: async (token: string): Promise<void> => {
     try {
-      await axios.post(`${API_URL}/api/v1/profile/2fa/verify`, { token });
+      await axios.post(`${API_ENDPOINTS.profile.update}/2fa/verify`, { token });
     } catch (error) {
       console.error('Failed to verify 2FA:', error);
       throw error;
@@ -117,7 +117,7 @@ export const profileApi = {
 
   disable2FA: async (token: string): Promise<void> => {
     try {
-      await axios.post(`${API_URL}/api/v1/profile/2fa/disable`, { token });
+      await axios.post(`${API_ENDPOINTS.profile.update}/2fa/disable`, { token });
     } catch (error) {
       console.error('Failed to disable 2FA:', error);
       throw error;

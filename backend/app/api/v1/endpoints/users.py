@@ -67,6 +67,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+@router.get("/me/me", response_model=User)
+async def get_current_user_me(current_user: User = Depends(get_current_user)) -> User:
+    """Get current user information."""
+    return current_user
+
 @router.get("/{user_id}", response_model=User)
 async def get_user(user_id: str) -> User:
     """

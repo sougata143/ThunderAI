@@ -13,8 +13,9 @@ import {
 import { LoadingButton } from '@mui/lab';
 import { useParams } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { api } from "../../services/api";
+import { api } from '../../services/api'; 
 import { toast } from "react-hot-toast";
+import ErrorBoundary from '../common/ErrorBoundary';
 
 interface Model {
   _id: string;
@@ -22,13 +23,20 @@ interface Model {
   description: string;
 }
 
-export const TextGeneration: React.FC = () => {
+interface FormData {
+  prompt: string;
+  max_length: number;
+  temperature: number;
+  top_p: number;
+}
+
+const TextGeneration: React.FC = () => {
   const { modelId } = useParams<{ modelId: string }>();
   const { token } = useAuth();
   const [model, setModel] = useState<Model | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     prompt: '',
     max_length: 100,
     temperature: 0.7,
@@ -77,13 +85,12 @@ export const TextGeneration: React.FC = () => {
     }
   };
 
-  const handleInputChange = (field: string) => (
-    event: React.ChangeEvent<HTMLInputElement> | any
-  ) => {
-    const value = event.target ? event.target.value : event;
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
+  const handleInputChange = (field: keyof FormData, value: number | number[] | string) => {
+    setFormData(prevData => ({
+      ...prevData,
+      [field]: field === 'prompt' 
+        ? value as string 
+        : (Array.isArray(value) ? value[0] : value as number)
     }));
   };
 
@@ -112,14 +119,14 @@ export const TextGeneration: React.FC = () => {
             rows={4}
             fullWidth
             value={formData.prompt}
-            onChange={handleInputChange('prompt')}
+            onChange={(event) => handleInputChange('prompt', event.target.value)}
             sx={{ mb: 3 }}
           />
 
           <Typography gutterBottom>Max Length: {formData.max_length}</Typography>
           <Slider
             value={formData.max_length}
-            onChange={(_, value) => handleInputChange('max_length')(value)}
+            onChange={(_, value) => handleInputChange('max_length', value)}
             min={10}
             max={1000}
             step={10}
@@ -130,7 +137,7 @@ export const TextGeneration: React.FC = () => {
           <Typography gutterBottom>Temperature: {formData.temperature}</Typography>
           <Slider
             value={formData.temperature}
-            onChange={(_, value) => handleInputChange('temperature')(value)}
+            onChange={(_, value) => handleInputChange('temperature', value)}
             min={0.1}
             max={2}
             step={0.1}
@@ -141,7 +148,7 @@ export const TextGeneration: React.FC = () => {
           <Typography gutterBottom>Top P: {formData.top_p}</Typography>
           <Slider
             value={formData.top_p}
-            onChange={(_, value) => handleInputChange('top_p')(value)}
+            onChange={(_, value) => handleInputChange('top_p', value)}
             min={0.1}
             max={1}
             step={0.1}
@@ -174,3 +181,11 @@ export const TextGeneration: React.FC = () => {
     </Box>
   );
 };
+
+const TextGenerationWithErrorBoundary: React.FC = () => (
+  <ErrorBoundary>
+    <TextGeneration />
+  </ErrorBoundary>
+);
+
+export { TextGeneration, TextGenerationWithErrorBoundary };

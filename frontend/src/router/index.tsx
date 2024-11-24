@@ -1,57 +1,66 @@
 import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
-import { Layout } from '../components/Layout';
-import { Login } from '../components/auth/Login';
-import { Register } from '../components/auth/Register';
+import Layout from '../components/Layout/Layout';
+import Login from '../components/auth/Login';
+import Register from '../components/auth/Register';
 import { Dashboard } from '../components/dashboard/Dashboard';
-import { ModelList } from '../components/llm/ModelList';
-import { TextGeneration } from '../components/llm/TextGeneration';
+import ModelList from '../components/llm/ModelList';
+import { TextGenerationWithErrorBoundary } from '../components/llm/TextGeneration';
 import { ModelMetrics } from '../components/llm/ModelMetrics';
+import Settings from '../components/settings/Settings';
+import Profile from '../components/profile/Profile';
+import { Experiments } from '../components/experiments/Experiments';
 import { ProtectedRoute } from './ProtectedRoute';
 
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <Layout />,
+    element: <Navigate to="/app/dashboard" replace />
+  },
+  {
+    path: '/login',
+    element: <Login />
+  },
+  {
+    path: '/register',
+    element: <Register />
+  },
+  {
+    path: '/app',
+    element: <ProtectedRoute><Layout /></ProtectedRoute>,
     children: [
       {
         index: true,
-        element: <Navigate to="/dashboard" replace />,
-      },
-      {
-        path: 'login',
-        element: <Login />,
-      },
-      {
-        path: 'register',
-        element: <Register />,
+        element: <Navigate to="/app/dashboard" replace />
       },
       {
         path: 'dashboard',
-        element: (
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        ),
+        element: <Dashboard />
       },
       {
-        path: 'llm',
-        element: <ProtectedRoute />,
-        children: [
-          {
-            index: true,
-            element: <ModelList />,
-          },
-          {
-            path: 'generate/:modelId',
-            element: <TextGeneration />,
-          },
-          {
-            path: 'metrics/:modelId',
-            element: <ModelMetrics />,
-          },
-        ],
+        path: 'models',
+        element: <ModelList />
       },
-    ],
-  },
+      {
+        path: 'llm/generate/:modelId',
+        element: <TextGenerationWithErrorBoundary />
+      },
+      {
+        path: 'llm/metrics/:modelId',
+        element: <ModelMetrics />
+      },
+      {
+        path: 'experiments',
+        element: <Experiments />
+      },
+      {
+        path: 'settings',
+        element: <Settings />
+      },
+      {
+        path: 'profile',
+        element: <Profile />
+      }
+    ]
+  }
 ]);

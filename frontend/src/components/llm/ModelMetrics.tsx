@@ -20,7 +20,7 @@ import {
 } from 'recharts';
 import { useParams } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { api } from "../../services/api";
+import { api } from '../../services/api'; 
 import { toast } from "react-hot-toast";
 
 interface Model {
@@ -42,7 +42,7 @@ interface MetricCard {
   description: string;
 }
 
-export const ModelMetrics: React.FC = () => {
+const ModelMetrics: React.FC = () => {
   const { modelId } = useParams<{ modelId: string }>();
   const { token } = useAuth();
   const [model, setModel] = useState<Model | null>(null);
@@ -189,3 +189,5 @@ export const ModelMetrics: React.FC = () => {
     </Box>
   );
 };
+
+export { ModelMetrics };

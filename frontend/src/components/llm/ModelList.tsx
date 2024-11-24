@@ -7,18 +7,21 @@ import {
   Typography,
 } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
-import { api } from '../../services/api';
+import { api } from '../../services/api'; 
 import { ModelCard } from './ModelCard';
 import { CreateModelDialog } from './CreateModelDialog';
 import { toast } from 'react-hot-toast';
 
 interface Model {
-  id: string;
+  _id: string;
   name: string;
   description: string;
   architecture: string;
   status: string;
   created_at: string;
+  model_type: string;
+  version: string;
+  is_active: boolean;
   metrics?: {
     perplexity: number;
     bleu_score?: number;
@@ -27,7 +30,7 @@ interface Model {
   };
 }
 
-export const ModelList: React.FC = () => {
+const ModelList: React.FC = () => {
   const [models, setModels] = useState<Model[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -79,7 +82,7 @@ export const ModelList: React.FC = () => {
   const handleDeleteModel = async (modelId: string) => {
     try {
       await api.delete(`/llm/models/${modelId}`);
-      setModels(prevModels => prevModels.filter(model => model.id !== modelId));
+      setModels(prevModels => prevModels.filter(model => model._id !== modelId));
       toast.success('Model deleted successfully');
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to delete model');
@@ -114,10 +117,10 @@ export const ModelList: React.FC = () => {
 
       <Grid container spacing={3}>
         {models.map((model) => (
-          <Grid item xs={12} sm={6} md={4} key={model.id}>
+          <Grid item xs={12} sm={6} md={4} key={model._id}>
             <ModelCard
               model={model}
-              onDelete={() => handleDeleteModel(model.id)}
+              onDelete={() => handleDeleteModel(model._id)}
             />
           </Grid>
         ))}
@@ -140,3 +143,5 @@ export const ModelList: React.FC = () => {
     </Box>
   );
 };
+
+export default ModelList;
