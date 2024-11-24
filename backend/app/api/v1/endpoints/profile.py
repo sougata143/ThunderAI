@@ -1,9 +1,9 @@
-from typing import Optional, Any
+from typing import Optional, Any, List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from fastapi.responses import JSONResponse
-from pydantic import EmailStr
-from ....core.security import get_current_user
-from ....schemas.user import UserUpdate, UserResponse
+from pydantic import EmailStr, BaseModel, Field
+from ....core.security import get_current_user, get_password_hash, verify_password
+from ....schemas.user import UserUpdate, UserResponse, ApiKeyResponse, ApiKeyCreate
 from ....schemas.project import ProjectResponse
 from ....models.user import User
 from ....models.project import Project
@@ -13,13 +13,173 @@ import os
 from PIL import Image
 import secrets
 from datetime import datetime
+import uuid
 
 router = APIRouter()
 
+class UserPreferences(BaseModel):
+    emailNotifications: bool = Field(default=False)
+    twoFactorEnabled: bool = Field(default=False)
+    theme: str = Field(default="light")
+    language: str = Field(default="en")
+
+class UserStats(BaseModel):
+    modelsCreated: int = Field(default=0)
+    experimentsRun: int = Field(default=0)
+    totalTrainingHours: float = Field(default=0.0)
+    lastActive: datetime = Field(default_factory=datetime.utcnow)
+
+class UserProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    organization: Optional[str] = None
+    jobTitle: Optional[str] = None
+    bio: Optional[str] = None
+    preferences: Optional[UserPreferences] = None
+
+class PasswordChange(BaseModel):
+    currentPassword: str
+    newPassword: str
+
 @router.get("/me", response_model=UserResponse)
 async def get_profile(current_user: User = Depends(get_current_user)):
-    """Get current user's profile"""
-    return current_user
+    """Get current user's profile with extended information"""
+    user_data = current_user.dict()
+    
+    # Get user statistics
+    stats = await db.find_one("user_stats", {"user_id": current_user.id}) or {}
+    user_data["stats"] = UserStats(
+        modelsCreated=stats.get("models_created", 0),
+        experimentsRun=stats.get("experiments_run", 0),
+        totalTrainingHours=stats.get("total_training_hours", 0.0),
+        lastActive=stats.get("last_active", datetime.utcnow())
+    )
+    
+    # Get user preferences
+    preferences = await db.find_one("user_preferences", {"user_id": current_user.id}) or {}
+    user_data["preferences"] = UserPreferences(
+        emailNotifications=preferences.get("email_notifications", False),
+        twoFactorEnabled=preferences.get("two_factor_enabled", False),
+        theme=preferences.get("theme", "light"),
+        language=preferences.get("language", "en")
+    )
+    
+    # Get API keys
+    api_keys = await db.find_many("api_keys", {"user_id": current_user.id})
+    user_data["apiKeys"] = [
+        ApiKeyResponse(
+            id=str(key["_id"]),
+            name=key["name"],
+            lastUsed=key.get("last_used", key["created_at"]),
+            createdAt=key["created_at"]
+        ) for key in api_keys
+    ]
+    
+    return user_data
+
+@router.put("/me", response_model=UserResponse)
+async def update_profile(
+    profile_update: UserProfileUpdate,
+    current_user: User = Depends(get_current_user)
+) -> Any:
+    """Update user profile"""
+    try:
+        update_data = profile_update.dict(exclude_unset=True)
+        
+        if "email" in update_data:
+            existing_user = await db.find_one("users", {"email": update_data["email"], "_id": {"$ne": current_user.id}})
+            if existing_user:
+                raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Update user preferences if provided
+        if profile_update.preferences:
+            await db.update_one(
+                "user_preferences",
+                {"user_id": current_user.id},
+                {"$set": profile_update.preferences.dict()},
+                upsert=True
+            )
+        
+        # Update user document
+        result = await db.update_one(
+            "users",
+            {"_id": current_user.id},
+            {"$set": {**update_data, "updated_at": datetime.utcnow()}}
+        )
+        
+        if not result:
+            raise HTTPException(status_code=500, detail="Failed to update profile")
+        
+        return await get_profile(current_user)
+        
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/change-password")
+async def change_password(
+    password_change: PasswordChange,
+    current_user: User = Depends(get_current_user)
+):
+    """Change user password"""
+    if not verify_password(password_change.currentPassword, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    
+    hashed_password = get_password_hash(password_change.newPassword)
+    result = await db.update_one(
+        "users",
+        {"_id": current_user.id},
+        {"$set": {"hashed_password": hashed_password}}
+    )
+    
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to update password")
+    
+    return {"message": "Password updated successfully"}
+
+@router.post("/api-keys", response_model=ApiKeyResponse)
+async def create_api_key(
+    key_data: ApiKeyCreate,
+    current_user: User = Depends(get_current_user)
+):
+    """Generate new API key"""
+    api_key = {
+        "_id": str(uuid.uuid4()),
+        "user_id": current_user.id,
+        "name": key_data.name,
+        "key": f"sk-{secrets.token_urlsafe(32)}",
+        "created_at": datetime.utcnow(),
+        "last_used": datetime.utcnow()
+    }
+    
+    result = await db.insert_one("api_keys", api_key)
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to create API key")
+    
+    return ApiKeyResponse(
+        id=api_key["_id"],
+        name=api_key["name"],
+        key=api_key["key"],  # Only shown once during creation
+        lastUsed=api_key["last_used"],
+        createdAt=api_key["created_at"]
+    )
+
+@router.delete("/api-keys/{key_id}")
+async def delete_api_key(
+    key_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete an API key"""
+    result = await db.delete_one(
+        "api_keys",
+        {"_id": key_id, "user_id": current_user.id}
+    )
+    
+    if not result:
+        raise HTTPException(status_code=404, detail="API key not found")
+    
+    return {"message": "API key deleted successfully"}
 
 @router.get("/me/projects", response_model=list[ProjectResponse])
 async def get_user_projects(current_user: User = Depends(get_current_user)):
@@ -29,115 +189,6 @@ async def get_user_projects(current_user: User = Depends(get_current_user)):
         {"user_id": current_user.id}
     )
     return projects
-
-@router.put("/me", response_model=UserResponse)
-async def update_profile(
-    user_in: UserUpdate,
-    current_user: User = Depends(get_current_user)
-) -> Any:
-    """
-    Update current user.
-    """
-    try:
-        # Verify current password
-        if user_in.current_password and not current_user.verify_password(user_in.current_password):
-            raise HTTPException(status_code=400, detail="Current password is incorrect")
-
-        # Check username availability
-        if user_in.username and user_in.username != current_user.username:
-            existing_user = await db.find_one("users", {"username": user_in.username})
-            if existing_user:
-                raise HTTPException(status_code=400, detail="Username is already taken")
-
-        # Check email availability
-        if user_in.email and user_in.email != current_user.email:
-            existing_user = await db.find_one("users", {"email": user_in.email})
-            if existing_user:
-                raise HTTPException(status_code=400, detail="Email is already taken")
-
-        # Update user data
-        update_data = {
-            "username": user_in.username or current_user.username,
-            "email": user_in.email or current_user.email,
-            "updated_at": datetime.utcnow()
-        }
-
-        # Handle password update
-        if user_in.new_password:
-            update_data["hashed_password"] = User.get_password_hash(user_in.new_password)
-
-        # Handle profile picture upload
-        if user_in.profile_picture:
-            # Validate file type
-            if user_in.profile_picture.content_type not in settings.ALLOWED_IMAGE_TYPES:
-                raise HTTPException(status_code=400, detail="File must be a valid image type (JPEG, PNG, or GIF)")
-
-            # Check file size
-            contents = await user_in.profile_picture.read()
-            if len(contents) > settings.MAX_UPLOAD_SIZE:
-                raise HTTPException(status_code=400, detail=f"File size must be less than {settings.MAX_UPLOAD_SIZE // (1024*1024)}MB")
-            
-            # Reset file pointer for later use
-            await user_in.profile_picture.seek(0)
-
-            # Generate unique filename
-            ext = user_in.profile_picture.filename.split('.')[-1].lower()
-            filename = f"{secrets.token_hex(8)}_{current_user.id}.{ext}"
-            file_path = os.path.join(settings.PROFILE_PICTURES_DIR, filename)
-
-            # Save and process image
-            try:
-                # Save uploaded file
-                with open(file_path, "wb") as buffer:
-                    await user_in.profile_picture.seek(0)
-                    buffer.write(contents)
-
-                # Process image (resize if needed)
-                with Image.open(file_path) as img:
-                    # Resize to maximum dimensions while maintaining aspect ratio
-                    max_size = (500, 500)
-                    img.thumbnail(max_size, Image.Resampling.LANCZOS)
-                    img.save(file_path, quality=85, optimize=True)
-
-                # Delete old profile picture if it exists
-                if current_user.profile_picture:
-                    old_file_path = os.path.join(settings.STATIC_DIR, current_user.profile_picture.lstrip('/'))
-                    if os.path.exists(old_file_path):
-                        os.remove(old_file_path)
-
-                # Update profile picture path
-                update_data["profile_picture"] = f"/static/uploads/profile_pictures/{filename}"
-
-            except Exception as e:
-                # Clean up file if there was an error
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                raise HTTPException(status_code=500, detail=str(e))
-
-        # Update user in database
-        result = await db.update_one(
-            "users",
-            {"_id": current_user.id},
-            {"$set": update_data}
-        )
-
-        if not result:
-            raise HTTPException(status_code=500, detail="Failed to update profile")
-
-        # Get updated user data
-        updated_user = await db.find_one("users", {"_id": current_user.id})
-        if not updated_user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        return JSONResponse(content={
-            "message": "Profile updated successfully",
-            "user": UserResponse(**updated_user).dict()
-        })
-
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/projects/{project_id}")
 async def delete_project(

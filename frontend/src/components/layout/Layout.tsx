@@ -1,5 +1,6 @@
 import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   AppBar,
   Box,
@@ -20,13 +21,12 @@ import {
 import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
-  Psychology as AIIcon,
+  Science as ExperimentsIcon,
+  SmartToy as AIIcon,
   Settings as SettingsIcon,
   Person as PersonIcon,
-  Science as ExperimentsIcon,
   Logout as LogoutIcon,
 } from '@mui/icons-material';
-import { useAuth } from '../../contexts/AuthContext';
 
 const drawerWidth = 240;
 
@@ -43,11 +43,11 @@ const Layout: React.FC = () => {
   };
 
   const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-    { text: 'Experiments', icon: <ExperimentsIcon />, path: '/experiments' },
-    { text: 'Language Models', icon: <AIIcon />, path: '/llm' },
-    { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
-    { text: 'Profile', icon: <PersonIcon />, path: '/profile' },
+    { text: 'Dashboard', icon: <DashboardIcon />, path: '/app/dashboard' },
+    { text: 'Experiments', icon: <ExperimentsIcon />, path: '/app/experiments' },
+    { text: 'Language Models', icon: <AIIcon />, path: '/app/models' },
+    { text: 'Settings', icon: <SettingsIcon />, path: '/app/settings' },
+    { text: 'Profile', icon: <PersonIcon />, path: '/app/profile' },
   ];
 
   const handleNavigation = (path: string) => {
@@ -98,8 +98,6 @@ const Layout: React.FC = () => {
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       <CssBaseline />
-      
-      {/* App Bar */}
       <AppBar
         position="fixed"
         sx={{
@@ -119,7 +117,7 @@ const Layout: React.FC = () => {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div">
-            ThunderAI Platform
+            ThunderAI
           </Typography>
         </Toolbar>
       </AppBar>
@@ -127,10 +125,11 @@ const Layout: React.FC = () => {
       {/* Sidebar - Mobile */}
       <Drawer
         variant="temporary"
+        anchor="left"
         open={mobileOpen}
         onClose={handleDrawerToggle}
         ModalProps={{
-          keepMounted: true,
+          keepMounted: true, // Better open performance on mobile.
         }}
         sx={{
           display: { xs: 'block', sm: 'none' },

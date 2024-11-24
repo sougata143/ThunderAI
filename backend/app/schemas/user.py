@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, EmailStr, Field
 from bson import ObjectId
 
@@ -35,10 +35,37 @@ class UserCreate(UserBase):
 class UserUpdate(UserBase):
     password: Optional[str] = None
 
+class UserPreferences(BaseModel):
+    emailNotifications: bool = Field(default=False)
+    twoFactorEnabled: bool = Field(default=False)
+    theme: str = Field(default="light")
+    language: str = Field(default="en")
+
+class UserStats(BaseModel):
+    modelsCreated: int = Field(default=0)
+    experimentsRun: int = Field(default=0)
+    totalTrainingHours: float = Field(default=0.0)
+    lastActive: datetime = Field(default_factory=datetime.utcnow)
+
+class ApiKeyBase(BaseModel):
+    name: str
+
+class ApiKeyCreate(ApiKeyBase):
+    pass
+
+class ApiKeyResponse(ApiKeyBase):
+    id: str
+    lastUsed: datetime
+    createdAt: datetime
+    key: Optional[str] = None  # Only included when key is first created
+
 class UserInDBBase(UserBase):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    preferences: Optional[UserPreferences] = None
+    stats: Optional[UserStats] = None
+    apiKeys: Optional[List[ApiKeyResponse]] = None
 
     class Config:
         populate_by_name = True
@@ -53,7 +80,20 @@ class UserInDBBase(UserBase):
                 "is_active": True,
                 "is_superuser": False,
                 "created_at": "2023-01-01T00:00:00",
-                "updated_at": "2023-01-01T00:00:00"
+                "updated_at": "2023-01-01T00:00:00",
+                "preferences": {
+                    "emailNotifications": False,
+                    "twoFactorEnabled": False,
+                    "theme": "light",
+                    "language": "en"
+                },
+                "stats": {
+                    "modelsCreated": 0,
+                    "experimentsRun": 0,
+                    "totalTrainingHours": 0.0,
+                    "lastActive": "2023-01-01T00:00:00"
+                },
+                "apiKeys": []
             }
         }
 
@@ -64,6 +104,9 @@ class User(UserBase):
     id: str = Field(alias="_id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    preferences: Optional[UserPreferences] = None
+    stats: Optional[UserStats] = None
+    apiKeys: Optional[List[ApiKeyResponse]] = None
 
     class Config:
         populate_by_name = True
@@ -78,7 +121,20 @@ class User(UserBase):
                 "is_active": True,
                 "is_superuser": False,
                 "created_at": "2023-01-01T00:00:00",
-                "updated_at": "2023-01-01T00:00:00"
+                "updated_at": "2023-01-01T00:00:00",
+                "preferences": {
+                    "emailNotifications": False,
+                    "twoFactorEnabled": False,
+                    "theme": "light",
+                    "language": "en"
+                },
+                "stats": {
+                    "modelsCreated": 0,
+                    "experimentsRun": 0,
+                    "totalTrainingHours": 0.0,
+                    "lastActive": "2023-01-01T00:00:00"
+                },
+                "apiKeys": []
             }
         }
 
